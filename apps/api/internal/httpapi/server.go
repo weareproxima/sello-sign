@@ -100,6 +100,7 @@ func (s *Server) routes() {
 
 	m.HandleFunc("GET /workspaces/{workspace_id}", s.inWorkspace(s.getWorkspace))
 	m.HandleFunc("PATCH /workspaces/{workspace_id}", s.inWorkspace(s.updateWorkspace))
+	m.HandleFunc("DELETE /workspaces/{workspace_id}", s.inWorkspace(s.deleteWorkspace))
 	m.HandleFunc("GET /workspaces/{workspace_id}/members", s.inWorkspace(s.listMembers))
 	m.HandleFunc("GET /workspaces/{workspace_id}/export", s.inWorkspace(s.exportWorkspace))
 	m.HandleFunc("PATCH /workspaces/{workspace_id}/members/{user_id}", s.inWorkspace(s.updateMember))

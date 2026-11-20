@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -87,12 +88,7 @@ func (s *Server) deleteAccount(w http.ResponseWriter, r *http.Request, c *call) 
 		internalError(w, r, err)
 		return
 	}
-	for _, h := range gone.KeyHashes {
-		s.Keys.Delete(ctx, h)
-	}
-	for _, id := range gone.Certificates {
-		s.Signer.Forget(id)
-	}
+	s.forget(ctx, gone.DeletedSpaces)
 	deleted := 0
 	for _, a := range gone.Spaces {
 		if a.Outcome == store.OutcomeDelete {
@@ -101,4 +97,16 @@ func (s *Server) deleteAccount(w http.ResponseWriter, r *http.Request, c *call) 
 	}
 	slog.InfoContext(ctx, "account deleted", "left", len(gone.Spaces)-deleted, "workspaces_deleted", deleted)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// forget drops from the cache the keys of deleted spaces and organizations,
+// so they stop working at once on every instance that shares Valkey, and
+// forgets the material of their certificates in this process.
+func (s *Server) forget(ctx context.Context, gone store.DeletedSpaces) {
+	for _, h := range gone.KeyHashes {
+		s.Keys.Delete(ctx, h)
+	}
+	for _, id := range gone.Certificates {
+		s.Signer.Forget(id)
+	}
 }

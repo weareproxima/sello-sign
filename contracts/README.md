@@ -130,6 +130,24 @@ propia) no hay ninguno salvo los que se configuren: los de la consola
   (`{ "name", "default_country", "requests_per_minute" }`; el último, las
   firmas por minuto que el espacio se pone, nunca por encima de las de su
   plan, y `null` para volver a las del plan: «Límites»).
+- `DELETE /workspaces/{w}` `{ "confirmation" }` (token, solo `owner`): borra
+  el espacio con todo lo suyo, en una transacción. `confirmation` es su
+  nombre, tal como está (los blancos al principio y al final no cuentan);
+  otro texto es `400 confirmation-mismatch`, para que no se borre uno por
+  error. Se van sus organizaciones con sus certificados (el material
+  cifrado), sus delegaciones y las claves de una sola de ellas (también las
+  de otro espacio); sus miembros, sus invitaciones, las delegaciones que le
+  dieron, sus claves (que dejan de valer al momento, también en la caché),
+  su registro de firmas y su uso. Lo que otros espacios firmaron con sus
+  organizaciones se queda en su registro y su uso. Mientras otro espacio use
+  una de sus organizaciones por delegación, `409 workspace-has-delegations`,
+  sin cambiar nada; las de las que la plataforma tiene la delegación
+  `locked` vuelven antes a su espacio, como al cerrarlo (abajo, «Billing»).
+  Nunca se borran el espacio de la plataforma (`409 platform-workspace`) ni,
+  en la nube, el de una organización del IdP (`409 workspace-managed-by-sello`):
+  su plan y sus miembros los lleva Sello, y se cierra cuando Sello elimina
+  la organización. Así nunca se borra un uso que billing no haya recibido:
+  solo se le reporta el de esos espacios.
 - `GET /workspaces/{w}/members` → `[{ "user_id", "email", "name", "role" }]`.
 - `PATCH /workspaces/{w}/members/{user_id}` `{ "role" }` (token, `owner` o
   `admin`): cambia el rol de un miembro. Solo un `owner` da o quita el rol
@@ -198,10 +216,18 @@ propia) no hay ninguno salvo los que se configuren: los de la consola
     sus organizaciones por delegación (antes, hay que quitarlas). Los dos
     últimos impiden borrarla.
   - `DELETE /me`: lo hace, en una transacción, y lo llama el panel antes de
-    borrar la cuenta: sale de sus espacios, los de `delete` se borran, y se
-    borra lo que el API sabía de ella (`users`). Lo que hizo en los espacios
-    que quedan se queda. Si alguno lo impide, `409 account-has-workspaces` y
-    no cambia nada.
+    borrar la cuenta: sale de sus espacios, los de `delete` se borran (como
+    con `DELETE /workspaces/{w}`), y se borra lo que el API sabía de ella
+    (`users`). Lo que hizo en los espacios que quedan se queda. Si alguno lo
+    impide, `409 account-has-workspaces` y no cambia nada.
+- **El correo de una persona** es el del token (`email`): el API lo guarda en
+  `users` en cada `GET /me` (y al crear un espacio o aceptar una
+  invitación), para nombrarla entre los miembros, y lo compara al aceptar
+  una invitación (`invitation-email-mismatch`) y al invitar
+  (`already-member`). Si la persona cambia su correo en el panel, el
+  siguiente token lleva el nuevo, y el siguiente `GET /me` lo pone en
+  `users`; las invitaciones que esperan siguen siendo para el correo al que
+  se mandaron.
 
 ## Organizaciones (los contribuyentes)
 

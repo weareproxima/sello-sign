@@ -371,6 +371,61 @@ paths:
         '400': { $ref: '#/components/responses/Problem' }
         '403': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [Espacios]
+      operationId: deleteWorkspace
+      summary: Borrar un espacio
+      description: |
+        Solo un `owner`, con el token (una clave, `403 forbidden`). El cuerpo
+        lleva el nombre del espacio, tal como está (los blancos al principio
+        y al final no cuentan), para que no se borre uno por error: otro
+        texto, o sin él, es `400 confirmation-mismatch`.
+
+        Se borra, en una transacción, con todo lo suyo: sus organizaciones,
+        con sus certificados (el material cifrado y sus datos), sus
+        delegaciones y las claves de API de una sola de ellas, también las de
+        otro espacio; sus miembros, sus invitaciones, las delegaciones que
+        otros espacios le dieron, sus claves (que dejan de valer al momento),
+        su registro de firmas y su uso. Lo que otros espacios firmaron con
+        sus organizaciones se queda en el registro y el uso de esos espacios.
+
+        Mientras otro espacio use una de sus organizaciones por delegación,
+        `409 workspace-has-delegations`, y no cambia nada: se quitan antes.
+        Las organizaciones de las que el espacio de la plataforma de Sello
+        tiene la delegación `locked` vuelven antes a él, con sus certificados
+        y su historial, como al cerrar un espacio. El espacio de la
+        plataforma no se borra (`409 platform-workspace`), ni, en la nube, el
+        de una organización del IdP (`sello_workspace_id`), cuyo plan y
+        miembros empuja billing y que se cierra cuando Sello elimina esa
+        organización (`409 workspace-managed-by-sello`).
+      security:
+        - panelToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmation]
+              properties:
+                confirmation:
+                  type: string
+                  description: El nombre del espacio.
+      responses:
+        '204': { description: Borrado. }
+        '400':
+          description: '`confirmation-mismatch` o `invalid-request`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409':
+          description: '`workspace-has-delegations`, `platform-workspace` o `workspace-managed-by-sello`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /workspaces/{workspace_id}/members:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -1564,7 +1619,9 @@ components:
             `invitation-exists`, `invitation-expired`, `invitation-used`,
             `invitation-email-mismatch`, `rate-limited`,
             `monthly-limit-reached`, `organization-limit-reached`,
-            `account-has-workspaces`, `not-cloud`, `not-self-hosted`,
+            `account-has-workspaces`, `confirmation-mismatch`,
+            `workspace-has-delegations`, `platform-workspace`,
+            `workspace-managed-by-sello`, `not-cloud`, `not-self-hosted`,
             `internal`.
         title: { type: string }
         status: { type: integer }

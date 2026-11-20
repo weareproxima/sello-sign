@@ -142,22 +142,19 @@ func (s *Store) AccountSpaces(ctx context.Context, userID string) ([]AccountSpac
 }
 
 // DeletedAccount is what deleting an account removed that lives outside
-// the database too: the hashes of the keys to drop from the cache and the
-// certificates whose material to forget.
+// the database too (DeletedSpaces), and what happened to each space.
 type DeletedAccount struct {
-	Spaces       []AccountSpace
-	KeyHashes    [][]byte
-	Certificates []string
+	DeletedSpaces
+	Spaces []AccountSpace
 }
 
 // DeleteAccount deletes what the API keeps of a person: they leave every
 // space, the spaces they were the only member of are deleted with
-// everything in them (their organizations, certificates, delegations, keys,
-// invitations, log and usage), and their row in users goes. If a space
-// blocks it (AccountOutcome.Blocks), nothing changes: ErrAccountBlocked.
-// What they did in the spaces that stay (the keys they created, the
-// invitations they sent, their signatures in the log) stays: it's those
-// spaces'.
+// everything in them (deleteSpaces), and their row in users goes. If a
+// space blocks it (AccountOutcome.Blocks), nothing changes:
+// ErrAccountBlocked. What they did in the spaces that stay (the keys they
+// created, the invitations they sent, their signatures in the log) stays:
+// it's those spaces'.
 func (s *Store) DeleteAccount(ctx context.Context, userID string) (DeletedAccount, error) {
 	var out DeletedAccount
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
@@ -165,7 +162,7 @@ func (s *Store) DeleteAccount(ctx context.Context, userID string) (DeletedAccoun
 		if err != nil {
 			return err
 		}
-		out.Spaces = spaces
+		out = DeletedAccount{Spaces: spaces}
 		var doomed []string
 		for _, a := range spaces {
 			if a.Outcome.Blocks() {
@@ -175,30 +172,8 @@ func (s *Store) DeleteAccount(ctx context.Context, userID string) (DeletedAccoun
 				doomed = append(doomed, a.WorkspaceID)
 			}
 		}
-		if len(doomed) > 0 {
-			rows, err := tx.Query(ctx, `SELECT hash FROM api_keys WHERE workspace_id = ANY($1) AND revoked_at IS NULL`, doomed)
-			if err != nil {
-				return err
-			}
-			if out.KeyHashes, err = pgx.CollectRows(rows, pgx.RowTo[[]byte]); err != nil {
-				return err
-			}
-			rows, err = tx.Query(ctx, `SELECT c.id::text FROM certificates c JOIN organizations o ON o.id = c.organization_id
-				WHERE o.workspace_id = ANY($1)`, doomed)
-			if err != nil {
-				return err
-			}
-			if out.Certificates, err = pgx.CollectRows(rows, pgx.RowTo[string]); err != nil {
-				return err
-			}
-			// Organizations don't cascade from their space (RESTRICT): they go
-			// first, with their certificates, delegations and keys.
-			if _, err := tx.Exec(ctx, `DELETE FROM organizations WHERE workspace_id = ANY($1)`, doomed); err != nil {
-				return err
-			}
-			if _, err := tx.Exec(ctx, `DELETE FROM workspaces WHERE id = ANY($1)`, doomed); err != nil {
-				return err
-			}
+		if out.DeletedSpaces, err = deleteSpaces(ctx, tx, doomed); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM workspace_members WHERE user_id = $1`, userID); err != nil {
 			return err

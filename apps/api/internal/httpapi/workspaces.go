@@ -329,6 +329,68 @@ func (s *Server) updateWorkspace(w http.ResponseWriter, r *http.Request, c *call
 	writeJSON(w, http.StatusOK, workspaceOf(ws, c.role))
 }
 
+// deleteWorkspace handles DELETE /workspaces/{w}: only an owner, with the
+// token, and with the space's name in «confirmation». Never the platform's
+// space (409 platform-workspace) nor, in the cloud, the space of an
+// organization of Sello's IdP, whose plan and members billing pushes and
+// which closes when Sello deletes that organization (409
+// workspace-managed-by-sello). The organizations the platform holds a
+// locked delegation of go back to it; while another space uses one of its
+// organizations by delegation, 409 workspace-has-delegations. Its keys stop
+// working at once.
+func (s *Server) deleteWorkspace(w http.ResponseWriter, r *http.Request, c *call) {
+	if c.user() == nil {
+		writeProblem(w, errTokenOnly)
+		return
+	}
+	if c.role != model.Owner {
+		writeProblem(w, forbidden("Solo un propietario puede borrar el espacio."))
+		return
+	}
+	if s.PlatformWorkspace != "" && strings.EqualFold(c.ws.ID, s.PlatformWorkspace) {
+		writeProblem(w, problem(http.StatusConflict, "platform-workspace", "El espacio de la plataforma de Sello no se borra."))
+		return
+	}
+	if c.ws.SelloWorkspaceID != nil {
+		writeProblem(w, problem(http.StatusConflict, "workspace-managed-by-sello",
+			"Este espacio es el de su organización en Sello, que lleva su plan y sus miembros: no se borra desde Sello Sign. Se cierra cuando la organización se elimina en Sello."))
+		return
+	}
+	var body struct {
+		Confirmation *string `json:"confirmation"`
+	}
+	if p := decode(w, r, &body); p != nil {
+		writeProblem(w, p)
+		return
+	}
+	mismatch := problem(http.StatusBadRequest, "confirmation-mismatch", "«confirmation» debe ser el nombre del espacio, tal como está.")
+	if body.Confirmation == nil {
+		writeProblem(w, mismatch)
+		return
+	}
+	ctx := r.Context()
+	gone, err := s.Store.DeleteWorkspace(ctx, c.ws.ID, strings.TrimSpace(*body.Confirmation), s.PlatformWorkspace)
+	switch {
+	case errors.Is(err, store.ErrConfirmationMismatch):
+		writeProblem(w, mismatch)
+		return
+	case errors.Is(err, store.ErrWorkspaceDelegated):
+		writeProblem(w, problem(http.StatusConflict, "workspace-has-delegations",
+			"Otros espacios usan organizaciones de este por delegación: quite antes esas delegaciones."))
+		return
+	case errors.Is(err, store.ErrNotFound):
+		writeProblem(w, errWorkspaceNotFound)
+		return
+	case err != nil:
+		internalError(w, r, err)
+		return
+	}
+	s.forget(ctx, gone.DeletedSpaces)
+	slog.InfoContext(ctx, "workspace deleted", "workspace_id", c.ws.ID, "organizations", gone.Organizations,
+		"returned_to_platform", len(gone.Returned), "keys", len(gone.KeyHashes))
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type memberView struct {
 	UserID *string    `json:"user_id"`
 	Email  *string    `json:"email"`
