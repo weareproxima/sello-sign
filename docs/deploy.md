@@ -267,12 +267,11 @@ todavía no está ahí) ni después (describiría un API que ya no responde).
       nueva, `https://sign.sello.tax/sign-in` (el Sign viejo volvía a
       `/login`), y la de vuelta `https://sign.sello.tax/api/auth/callback/sello`;
       su `client_id` en `TRUSTED_CLIENTS` del IdP.
-- [ ] **El cobro**: en `../sello/apps/api/compose.dokploy.yml`,
-      `sello-billing` lleva `-sign=https://api.sign.sello.tax` todavía
-      comentado; se activa (paso 5), con `BILLING_SIGN_TOKEN` y
-      `SIGN_PUSH_TOKEN`, antes de vender planes en el panel nuevo: sin él, el
-      enlace del plan elegido lleva a «Plan y facturación», pero el cobro no
-      sabe de Sign.
+- [x] **El cobro**: en `../sello/apps/api/compose.dokploy.yml`,
+      `sello-billing` lleva `-sign=https://api.sign.sello.tax` desde el
+      2026-11-20 (paso 5), con `BILLING_SIGN_TOKEN` y `SIGN_PUSH_TOKEN`: sin
+      él, el enlace del plan elegido llevaría a «Plan y facturación», pero el
+      cobro no sabría de Sign.
 
 ## Volver atrás
 
