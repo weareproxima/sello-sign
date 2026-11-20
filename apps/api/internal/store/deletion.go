@@ -5,6 +5,8 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+
+	"proxima.la/sello/sign/internal/audit"
 )
 
 var (
@@ -30,7 +32,7 @@ type DeletedSpaces struct {
 // certificates, their delegations and every key of only one of them, also
 // another space's; and, with each space, its members, its billing seats,
 // the delegations it was given, its keys, its invitations, what it signed
-// in the log and its usage. What other spaces signed with its
+// in the log, its usage and its audit log. What other spaces signed with its
 // organizations stays in their log and their usage: it's theirs. The
 // caller has locked the spaces and checked nothing else uses their
 // organizations.
@@ -98,7 +100,9 @@ func (s *Store) DeleteWorkspace(ctx context.Context, id, confirmation, platformI
 		if _, err := tx.Exec(ctx, `SELECT id FROM organizations WHERE workspace_id = $1 ORDER BY id FOR UPDATE`, id); err != nil {
 			return err
 		}
-		returned, revoked, err := returnToPlatform(ctx, tx, id, platformID)
+		// The platform's space is told the space gave them back, never who
+		// deleted it.
+		returned, revoked, err := s.returnToPlatform(ctx, tx, id, platformID, audit.Space(id))
 		if err != nil {
 			return err
 		}

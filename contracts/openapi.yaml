@@ -15,8 +15,9 @@ info:
       `429 rate-limited` y `429 monthly-limit-reached`, con `Retry-After` y
       las cabeceras `X-RateLimit-*` (ver `Limits`).
     - Toda lista responde `{ "items": [...], "next_cursor": "…" | null }`.
-      Las que crecen (organizaciones, claves, registro de firmas) se paginan
-      con `?limit=` (1 a 100, 50 por defecto) y `?cursor=`; las demás
+      Las que crecen (organizaciones, claves, registro de firmas, registro
+      de actividad) se paginan con `?limit=` (1 a 100, 50 por defecto) y
+      `?cursor=`; las demás
       (miembros, certificados, delegaciones…) van enteras, con
       `next_cursor: null`.
   license:
@@ -33,6 +34,7 @@ tags:
   - name: Delegaciones
   - name: Claves
   - name: Registro
+  - name: Actividad
   - name: Billing
   - name: MCP
   - name: Sistema
@@ -537,10 +539,12 @@ paths:
         espacio, sus organizaciones (las propias y las delegadas) con los
         datos públicos de sus certificados (nunca el material ni el PIN) y
         sus delegaciones, sus claves (también las revocadas, nunca su hash),
-        sus miembros, sus invitaciones abiertas (nunca su token), su uso y su
-        registro de firmas tal como está, dentro de su retención. El
-        registro va al final y se escribe a medida que se lee; si falla a
-        medias, la descarga se corta.
+        sus miembros, sus invitaciones abiertas (nunca su token), su uso, su
+        registro de actividad y su registro de firmas tal como están, dentro
+        de su retención. Los dos registros van al final y se escriben a
+        medida que se leen; si falla a medias, la descarga se corta. La
+        exportación queda en el registro de actividad
+        (`workspace.exported`) antes de enviarse.
       security:
         - panelToken: []
       responses:
@@ -1370,6 +1374,84 @@ paths:
         '403': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
 
+  /workspaces/{workspace_id}/audit-events:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Actividad]
+      operationId: listAuditEvents
+      summary: El registro de actividad del espacio
+      description: |
+        Quién cambió qué en el espacio: cada cambio que hace una persona (con
+        el token) o una clave (también por el servidor MCP) al espacio y a lo
+        que guarda (sus datos y límites, miembros, invitaciones,
+        organizaciones, certificados, delegaciones y claves), lo que empuja
+        billing en la nube (el plan, cerrar y reabrir), lo que hace la
+        consola del servidor, y cada exportación de sus datos. No las firmas
+        ni las verificaciones: las firmas están en el registro de firmas.
+        Cada evento se escribe en la misma transacción que su cambio.
+
+        Con el token, `owner` o `admin`; una clave, `403`: el registro nombra
+        a personas (miembros y correos invitados), que ninguna clave lee. Por
+        eso tampoco está en el servidor MCP.
+
+        Un cambio de otro espacio a lo que este guarda (una delegación que
+        le dan o le quitan, un certificado que sube a una organización suya
+        quien la tiene delegada, una organización que vuelve o que se lleva)
+        queda en los dos, y en este el actor es ese espacio
+        (`actor.type: workspace`), nunca su persona ni su clave.
+
+        Cada evento se guarda 365 días, sea cual sea el plan, y se borra con
+        el espacio. No guarda la dirección IP ni el navegador, ni ningún
+        secreto: ni claves, ni sus hashes, ni tokens, ni el material de un
+        certificado, ni su PIN.
+      security:
+        - panelToken: []
+      parameters:
+        - name: action
+          in: query
+          description: Solo esta acción.
+          schema: { $ref: '#/components/schemas/AuditAction' }
+        - name: target_type
+          in: query
+          description: Solo lo que es de este tipo.
+          schema: { $ref: '#/components/schemas/AuditTargetType' }
+        - name: target_id
+          in: query
+          description: Solo lo que es sobre esto (`target.id`).
+          schema: { type: string }
+        - name: actor_type
+          in: query
+          schema: { $ref: '#/components/schemas/AuditActorType' }
+        - name: actor_id
+          in: query
+          description: Solo lo que hizo esta persona (su `user_id`), esta clave o este espacio (`actor.id`).
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Los eventos, del más nuevo al más antiguo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditEvent' }
+                  next_cursor: { $ref: '#/components/schemas/NextCursor' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
   /api/billing/organizations/{sello_workspace_id}:
     put:
       tags: [Billing]
@@ -2045,6 +2127,133 @@ components:
         signed_by_workspace_id: { type: string, format: uuid }
         duration_ms: { type: integer }
         created_at: { type: string, format: date-time }
+    AuditAction:
+      type: string
+      description: |
+        `<objeto>.<verbo>`, estable. Lo que dice cada una en `details`:
+
+        - `workspace.created` (`name`, `default_country`; en la nube,
+          `sello_workspace_id` y `plan`), `workspace.updated` (`changes`:
+          `name`, `default_country`, `requests_per_minute`),
+          `workspace.limits_changed` (la consola, en un espacio sin plan;
+          `changes` con los límites), `workspace.plan_changed` (billing;
+          `changes` con `plan` y los límites), `workspace.closed` y
+          `workspace.reopened` (billing), `workspace.exported`.
+        - `member.added` (la consola; `role`), `member.role_changed`
+          (`from`, `to`), `member.removed` y `member.left` (`role`; al
+          borrar la cuenta, también `account_deleted: true`).
+        - `invitation.created`, `invitation.renewed`, `invitation.revoked`
+          (`role`) e `invitation.accepted` (`role`, y `joined: false` si la
+          persona ya era miembro).
+        - `organization.created` (`tax_id`, `country`, `contact_email`,
+          `sello_workspace_id`), `organization.updated` (`changes`: `name`,
+          `contact_email`, `sello_workspace_id`), `organization.deleted`
+          (`tax_id`, `country`, `certificates`), `organization.claimed` y
+          `organization.returned` (`tax_id`, `country`, `from_workspace_id`,
+          `from_workspace_name`, `to_workspace_id`).
+        - `certificate.uploaded` (`organization_id`, `environment`,
+          `serial`, `not_after`, `active` y, si reemplazó al activo,
+          `replaced_certificate_id`), `certificate.activated` y
+          `certificate.deactivated` (lo mismo, sin `active`),
+          `certificate.deleted` (con `active`).
+        - `delegation.granted` y `delegation.removed` (`organization_id`,
+          `owner_workspace_id`, `owner_workspace_name`, `workspace_id` y
+          `workspace_name` del espacio delegado, `scopes`, `locked`; al
+          quitarla, `renounced`: si fue el delegado).
+        - `api_key.created` (`environment`, `scopes`, `organization_id`,
+          `requests_per_minute`) y `api_key.revoked` (`environment`,
+          `organization_id` y, si no la revocó nadie, `reason`:
+          `organization_deleted` u `organization_returned`).
+      enum:
+        - workspace.created
+        - workspace.updated
+        - workspace.limits_changed
+        - workspace.plan_changed
+        - workspace.closed
+        - workspace.reopened
+        - workspace.exported
+        - member.added
+        - member.role_changed
+        - member.removed
+        - member.left
+        - invitation.created
+        - invitation.renewed
+        - invitation.revoked
+        - invitation.accepted
+        - organization.created
+        - organization.updated
+        - organization.deleted
+        - organization.claimed
+        - organization.returned
+        - certificate.uploaded
+        - certificate.activated
+        - certificate.deactivated
+        - certificate.deleted
+        - delegation.granted
+        - delegation.removed
+        - api_key.created
+        - api_key.revoked
+    AuditActorType:
+      type: string
+      description: |
+        `user`: una persona, con el token. `api_key`: una clave (por el API
+        o, con `via: mcp`, por el servidor MCP). `billing`: billing de
+        Sello (la nube). `console`: la consola del servidor. `workspace`:
+        otro espacio, en lo que hizo a lo que este guarda. `system`: el API
+        mismo.
+      enum: [user, api_key, billing, console, workspace, system]
+    AuditTargetType:
+      type: string
+      enum:
+        [
+          workspace,
+          member,
+          invitation,
+          organization,
+          certificate,
+          delegation,
+          api_key,
+        ]
+    AuditEvent:
+      type: object
+      required: [id, action, actor, target, details, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        action: { $ref: '#/components/schemas/AuditAction' }
+        actor:
+          type: object
+          description: Quién, como lo conocía el API en ese momento.
+          required: [type, id, email, name, via]
+          properties:
+            type: { $ref: '#/components/schemas/AuditActorType' }
+            id:
+              type: [string, 'null']
+              description: El `user_id` de la persona, el id de la clave o el del espacio; `null` para billing, la consola y el sistema.
+            email:
+              type: [string, 'null']
+              description: El de la persona, según su token.
+            name:
+              type: [string, 'null']
+              description: El de la persona (según su token), el de la clave o el del espacio.
+            via:
+              type: [string, 'null']
+              enum: [mcp, null]
+              description: '`mcp` si una clave lo hizo por el servidor MCP.'
+        target:
+          type: object
+          required: [type, id, label]
+          properties:
+            type: { $ref: '#/components/schemas/AuditTargetType' }
+            id:
+              type: [string, 'null']
+              description: El id del espacio, de la organización, del certificado, de la delegación, de la clave o de la invitación; el `user_id` de un miembro.
+            label:
+              type: string
+              description: Su nombre en ese momento (el de la organización, también para sus certificados y delegaciones; el de la clave; el correo del miembro o de la invitación); vacío si no se conocía.
+        details:
+          type: object
+          description: Lo que cambió (ver `AuditAction`). Nunca un secreto.
+        created_at: { type: string, format: date-time }
     AccountDeletion:
       type: object
       required: [allowed, workspaces]
@@ -2085,6 +2294,7 @@ components:
           members,
           invitations,
           usage,
+          audit_events,
           signatures,
         ]
       properties:
@@ -2134,6 +2344,10 @@ components:
               month: { type: string, example: '2026-11' }
               environment: { $ref: '#/components/schemas/Environment' }
               signatures: { type: integer }
+        audit_events:
+          type: array
+          description: El registro de actividad, del más nuevo al más antiguo; el primero es esta exportación.
+          items: { $ref: '#/components/schemas/AuditEvent' }
         signatures:
           type: array
           items: { $ref: '#/components/schemas/SignatureEntry' }

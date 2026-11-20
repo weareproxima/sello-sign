@@ -9,11 +9,18 @@ import (
 	"strconv"
 	"strings"
 
+	"proxima.la/sello/sign/internal/audit"
 	"proxima.la/sello/sign/internal/auth"
 	"proxima.la/sello/sign/internal/ids"
 	"proxima.la/sello/sign/internal/model"
 	"proxima.la/sello/sign/internal/store"
 )
+
+// consoleContext is the context of a console command: what it changes is
+// recorded in the audit log as the console's.
+func consoleContext() context.Context {
+	return audit.WithActor(context.Background(), audit.Actor{Type: audit.ActorConsole})
+}
 
 // workspaceCreate creates a space: one to try the API locally, a
 // self-hosted install's first one, or Sello's platform space in the cloud
@@ -37,7 +44,7 @@ func workspaceCreate(args []string) error {
 		}
 		cc = &up
 	}
-	ctx := context.Background()
+	ctx := consoleContext()
 	db, done, err := openDB(ctx)
 	if err != nil {
 		return err
@@ -105,7 +112,7 @@ func workspaceLimits(args []string) error {
 			return fmt.Errorf("-%s must be at least 1, or none", name)
 		}
 	}
-	ctx := context.Background()
+	ctx := consoleContext()
 	db, done, err := openDB(ctx)
 	if err != nil {
 		return err
@@ -147,7 +154,7 @@ func memberAdd(args []string) error {
 	if !ok || !ids.Valid(*workspace) || *user == "" {
 		return errors.New("-workspace (an id), -user and a valid -role are required")
 	}
-	ctx := context.Background()
+	ctx := consoleContext()
 	db, done, err := openDB(ctx)
 	if err != nil {
 		return err
@@ -182,7 +189,7 @@ func keyCreate(args []string) error {
 		}
 		scopes = parsed
 	}
-	ctx := context.Background()
+	ctx := consoleContext()
 	db, done, err := openDB(ctx)
 	if err != nil {
 		return err

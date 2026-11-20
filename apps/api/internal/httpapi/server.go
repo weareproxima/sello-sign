@@ -110,6 +110,7 @@ func (s *Server) routes() {
 	m.HandleFunc("DELETE /workspaces/{workspace_id}/invitations/{invitation_id}", s.inWorkspace(s.revokeInvitation))
 	m.HandleFunc("POST /workspaces/{workspace_id}/invitations/{invitation_id}/renewals", s.inWorkspace(s.renewInvitation))
 	m.HandleFunc("GET /workspaces/{workspace_id}/usage", s.inWorkspace(s.usage))
+	m.HandleFunc("GET /workspaces/{workspace_id}/audit-events", s.inWorkspace(s.listAuditEvents))
 
 	m.HandleFunc("GET /workspaces/{workspace_id}/organizations", s.inWorkspace(s.listOrganizations))
 	m.HandleFunc("POST /workspaces/{workspace_id}/organizations", s.inWorkspace(s.createOrganization))

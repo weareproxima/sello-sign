@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"proxima.la/sello/sign/internal/audit"
 	"proxima.la/sello/sign/internal/auth"
 	"proxima.la/sello/sign/internal/model"
 	"proxima.la/sello/sign/internal/store"
@@ -126,7 +127,8 @@ func (s *Server) touch(id string) {
 	}()
 }
 
-// authed runs h with the caller.
+// authed runs h with the caller, who is also the actor of every change the
+// request makes (the audit log).
 func (s *Server) authed(h handlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p, prob := s.authenticate(r)
@@ -134,8 +136,26 @@ func (s *Server) authed(h handlerFunc) http.HandlerFunc {
 			writeProblem(w, prob)
 			return
 		}
+		r = r.WithContext(audit.WithActor(r.Context(), actorOf(r.Context(), p)))
 		h(w, r, &call{p: p})
 	}
+}
+
+// viaMCPKey marks the requests the MCP server's tools make (mcpDispatch).
+type viaMCPKey struct{}
+
+// actorOf is who a caller is in the audit log: a person, as their token
+// says, or a key, by its id (and through the MCP server, if it was).
+func actorOf(ctx context.Context, p *auth.Principal) audit.Actor {
+	if k := p.Key; k != nil {
+		a := audit.Actor{Type: audit.ActorAPIKey, ID: k.ID}
+		if via, _ := ctx.Value(viaMCPKey{}).(bool); via {
+			a.Via = audit.ViaMCP
+		}
+		return a
+	}
+	u := p.User
+	return audit.Actor{Type: audit.ActorUser, ID: u.Subject, Email: u.Email, Name: u.Name}
 }
 
 // inWorkspace runs h within the space of the path: a key's own (or

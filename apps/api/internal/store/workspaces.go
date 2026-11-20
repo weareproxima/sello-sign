@@ -2,10 +2,12 @@ package store
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 
+	"proxima.la/sello/sign/internal/audit"
 	"proxima.la/sello/sign/internal/ids"
 	"proxima.la/sello/sign/internal/model"
 )
@@ -68,6 +70,10 @@ func (s *Store) CreateWorkspace(ctx context.Context, name string, defaultCountry
 			id, name, defaultCountry); err != nil {
 			return err
 		}
+		if err := s.record(ctx, tx, event{workspace: id, action: audit.WorkspaceCreated, target: audit.TargetWorkspace,
+			targetID: id, label: name, details: map[string]any{"name": name, "default_country": defaultCountry}}); err != nil {
+			return err
+		}
 		if ownerUserID == "" {
 			return nil
 		}
@@ -81,11 +87,33 @@ func (s *Store) CreateWorkspace(ctx context.Context, name string, defaultCountry
 }
 
 // AddMember makes userID a member of a space with role, or changes their
-// role.
+// role (the console).
 func (s *Store) AddMember(ctx context.Context, workspaceID, userID string, role model.Role) error {
-	_, err := s.pool.Exec(ctx, `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)
-		ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role`, workspaceID, userID, string(role))
-	return err
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var from *string
+		err := tx.QueryRow(ctx, `SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2 FOR UPDATE`,
+			workspaceID, userID).Scan(&from)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if from != nil && model.Role(*from) == role {
+			return nil
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)
+			ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role`, workspaceID, userID, string(role)); err != nil {
+			return err
+		}
+		label, err := memberLabel(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		e := event{workspace: workspaceID, action: audit.MemberAdded, target: audit.TargetMember, targetID: userID, label: label,
+			details: map[string]any{"role": role}}
+		if from != nil {
+			e.action, e.details = audit.MemberRoleChanged, map[string]any{"from": *from, "to": role}
+		}
+		return s.record(ctx, tx, e)
+	})
 }
 
 // Workspace reads a space.
@@ -141,17 +169,41 @@ func (s *Store) UpdateWorkspace(ctx context.Context, id string, p WorkspacePatch
 	if setRate {
 		rate = *p.OwnRequestsPerMinute
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE workspaces SET
-			name = COALESCE($2, name),
-			default_country = CASE WHEN $3 THEN $4 ELSE default_country END,
-			own_requests_per_minute = CASE WHEN $5 THEN $6 ELSE own_requests_per_minute END,
-			updated_at = now()
-		WHERE id = $1`, id, p.Name, setCountry, country, setRate, rate)
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var name string
+		var oldCountry *string
+		var oldRate *int
+		if err := tx.QueryRow(ctx, `SELECT name, default_country, own_requests_per_minute FROM workspaces WHERE id = $1 FOR UPDATE`,
+			id).Scan(&name, &oldCountry, &oldRate); err != nil {
+			return notFound(err)
+		}
+		if _, err := tx.Exec(ctx, `UPDATE workspaces SET
+				name = COALESCE($2, name),
+				default_country = CASE WHEN $3 THEN $4 ELSE default_country END,
+				own_requests_per_minute = CASE WHEN $5 THEN $6 ELSE own_requests_per_minute END,
+				updated_at = now()
+			WHERE id = $1`, id, p.Name, setCountry, country, setRate, rate); err != nil {
+			return err
+		}
+		changes := audit.Changes{}
+		if p.Name != nil {
+			changes.Set("name", name, *p.Name)
+			name = *p.Name
+		}
+		if setCountry {
+			changes.Set("default_country", oldCountry, country)
+		}
+		if setRate {
+			changes.Set("requests_per_minute", oldRate, rate)
+		}
+		if len(changes) == 0 {
+			return nil
+		}
+		return s.record(ctx, tx, event{workspace: id, action: audit.WorkspaceUpdated, target: audit.TargetWorkspace,
+			targetID: id, label: name, details: map[string]any{"changes": changes}})
+	})
 	if err != nil {
 		return Workspace{}, err
-	}
-	if tag.RowsAffected() == 0 {
-		return Workspace{}, ErrNotFound
 	}
 	return s.Workspace(ctx, id)
 }

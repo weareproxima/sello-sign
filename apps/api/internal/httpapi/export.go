@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"proxima.la/sello/sign/internal/audit"
 	"proxima.la/sello/sign/internal/model"
 	"proxima.la/sello/sign/internal/store"
 )
@@ -50,8 +51,10 @@ type exportView struct {
 // has, as one JSON made at the moment and never kept: the space, its
 // organizations (with their certificates' public data, never their
 // material, and their delegations), its keys (never their hash), its
-// members, its open invitations (never their token), its usage and its
-// signing log as it stands, within its retention. Owners and admins.
+// members, its open invitations (never their token), its usage, its audit
+// log and its signing log as it stands, within their retention. Owners and
+// admins. The export itself is recorded in the audit log before it's
+// sent: if that fails, nothing is.
 func (s *Server) exportWorkspace(w http.ResponseWriter, r *http.Request, c *call) {
 	if c.user() == nil {
 		writeProblem(w, errTokenOnly)
@@ -133,29 +136,30 @@ func (s *Server) exportWorkspace(w http.ResponseWriter, r *http.Request, c *call
 		internalError(w, r, err)
 		return
 	}
+	if err := s.Store.RecordEvent(ctx, c.ws.ID, audit.WorkspaceExported, audit.TargetWorkspace, c.ws.ID, c.ws.Name, nil); err != nil {
+		internalError(w, r, err)
+		return
+	}
 	h := w.Header()
 	h.Set("Content-Type", "application/json")
 	h.Set("Cache-Control", "no-store")
 	h.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="sello-sign-%s-%s.json"`, c.ws.ID, now.Format("2006-01-02")))
 	w.WriteHeader(http.StatusOK)
 
-	// The log goes last, streamed: it can be long.
+	// The logs go last, streamed: they can be long.
 	bw := bufio.NewWriterSize(w, 64<<10)
 	bw.Write(bytes.TrimSuffix(head, []byte("}")))
-	bw.WriteString(`,"signatures":[`)
-	n := 0
-	err = s.Store.EachSignature(ctx, c.ws.ID, func(e store.SignatureEntry) error {
-		line, err := json.Marshal(signatureOf(e))
-		if err != nil {
-			return err
-		}
-		if n > 0 {
-			bw.WriteByte(',')
-		}
-		n++
-		_, err = bw.Write(line)
-		return err
+	events, signatures := 0, 0
+	bw.WriteString(`,"audit_events":[`)
+	err = s.Store.EachAuditEvent(ctx, c.ws.ID, func(e store.AuditEvent) error {
+		return writeItem(bw, &events, auditEventOf(e))
 	})
+	if err == nil {
+		bw.WriteString(`],"signatures":[`)
+		err = s.Store.EachSignature(ctx, c.ws.ID, func(e store.SignatureEntry) error {
+			return writeItem(bw, &signatures, signatureOf(e))
+		})
+	}
 	if err == nil {
 		bw.WriteString("]}\n")
 		err = bw.Flush()
@@ -166,5 +170,19 @@ func (s *Server) exportWorkspace(w http.ResponseWriter, r *http.Request, c *call
 		slog.ErrorContext(ctx, "export failed", "workspace_id", c.ws.ID, "error", err)
 		panic(http.ErrAbortHandler)
 	}
-	slog.InfoContext(ctx, "workspace exported", "workspace_id", c.ws.ID, "signatures", n)
+	slog.InfoContext(ctx, "workspace exported", "workspace_id", c.ws.ID, "audit_events", events, "signatures", signatures)
+}
+
+// writeItem writes v as the next item of a JSON array that already has n.
+func writeItem(bw *bufio.Writer, n *int, v any) error {
+	line, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	if *n > 0 {
+		bw.WriteByte(',')
+	}
+	*n++
+	_, err = bw.Write(line)
+	return err
 }

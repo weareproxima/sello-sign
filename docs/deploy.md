@@ -51,6 +51,8 @@ llamada del panel al API responde `401`.
 | `BILLING_TOKEN`                                         | sí                   | Sign → cobro (activar un espacio, reportar el uso cada hora). Es el valor de `BILLING_SIGN_TOKEN` del cobro de Sello.                                                                                                             |
 | `BILLING_PUSH_TOKEN`                                    | sí                   | Cobro → Sign (`PUT /api/billing/organizations/{id}`). Es el valor de `SIGN_PUSH_TOKEN` del cobro. Distinto del anterior: el API no arranca si son iguales.                                                                        |
 | `SIGN_COUNTRIES`, `LOG_LEVEL`                           | no                   | Los países que se ofrecen (`SV,DO,CR,PA,GT`) y el nivel de los logs (`info`).                                                                                                                                                     |
+| `RESEND_API_KEY`                                        | no                   | La clave de Resend con la que salen los avisos del API (certificados por vencer, el uso del plan), la del dominio `sign.sello.tax`. Sin ella, los avisos solo se escriben en sus logs.                                            |
+| `EMAIL_FROM`                                            | no                   | Su remitente: `Sello Sign <noreply@sign.sello.tax>` por defecto en el compose, el mismo del panel.                                                                                                                                |
 | `SIGN_RATE_LIMIT_PER_MINUTE`, `SIGN_LOG_RETENTION_DAYS` | **nunca en la nube** | Los límites de un espacio sin plan en una instalación propia. En la nube, los de cada espacio los empuja el cobro, y el de la plataforma de Sello no tiene plan: con ellas, su firma quedaría limitada y su registro se borraría. |
 
 `REDIS_URL` (el Valkey del compose), `CLOUD=true`, `ADDR=0.0.0.0:8080` y
@@ -59,6 +61,19 @@ llamada del panel al API responde `401`.
 (`BILLING_TOKEN` y `BILLING_PUSH_TOKEN` del Worker `sello-sign`): los mismos
 valores sirven, o se generan nuevos (`openssl rand -hex 32`, uno por sentido) y
 se cambian a la vez en el cobro.
+
+**Los avisos** (desde el 2026-11-20; `docs/rebuild.md`, «Estado › API»): el
+API escribe cada hora a quien administra cada espacio por los certificados por
+vencer y el uso del plan. En la nube, `RESEND_API_KEY` es una clave de Resend
+que envía desde `sign.sello.tax` (verificado en Resend desde el 2026-11-20;
+sirve la del panel, o una propia con permiso de solo envío para ese dominio), y
+`EMAIL_FROM` se deja en el valor del compose,
+`Sello Sign <noreply@sign.sello.tax>`. Sin la clave el API arranca igual, lo
+avisa en sus logs y escribe ahí cada aviso, con su destinatario, en lugar de
+enviarlo: se da por enviado y no se repite. Se comprueba en los logs (la
+primera vuelta, un minuto después de arrancar): `notices` con `sent` y
+`pending` cuando hubo alguno, o `could not send a notice` con la respuesta de
+Resend.
 
 ### Panel (Worker)
 

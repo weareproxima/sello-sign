@@ -37,6 +37,8 @@ import (
 	"proxima.la/sello/sign/internal/cache"
 	"proxima.la/sello/sign/internal/config"
 	"proxima.la/sello/sign/internal/httpapi"
+	"proxima.la/sello/sign/internal/mail"
+	"proxima.la/sello/sign/internal/notices"
 	"proxima.la/sello/sign/internal/ratelimit"
 	"proxima.la/sello/sign/internal/retention"
 	"proxima.la/sello/sign/internal/secrets"
@@ -201,6 +203,15 @@ func serve() error {
 	}
 
 	go retention.Run(ctx, db, time.Now)
+
+	var sender mail.Sender = mail.Log{}
+	if cfg.ResendAPIKey != "" {
+		sender = mail.NewResend(cfg.ResendAPIKey, cfg.EmailFrom)
+	} else {
+		slog.Warn("RESEND_API_KEY is unset: the notices (certificates about to expire, the plan's usage) are written to the log instead of e-mailed")
+	}
+	notifier := &notices.Notifier{Source: db, Mail: sender, PanelURL: cfg.PanelURL, Platform: cfg.PlatformWorkspace}
+	go notifier.Run(ctx, time.Now)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,

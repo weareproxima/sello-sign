@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"proxima.la/sello/sign/internal/audit"
 	"proxima.la/sello/sign/internal/ids"
 	"proxima.la/sello/sign/internal/model"
 )
@@ -50,35 +51,52 @@ func (s *Store) SetLimits(ctx context.Context, id string, p LimitsPatch) (Worksp
 	if !ids.Valid(id) {
 		return Workspace{}, ErrNotFound
 	}
-	args := []any{id}
-	set := ""
-	for _, f := range []struct {
-		column string
-		value  **int
+	fields := []struct {
+		column, name string
+		value        **int
 	}{
-		{"max_organizations", p.Organizations}, {"max_prod_signatures", p.ProdSignatures},
-		{"max_test_signatures", p.TestSignatures}, {"max_members", p.Members},
-		{"requests_per_minute", p.RequestsPerMinute}, {"retention_days", p.RetentionDays},
-	} {
-		if f.value == nil {
-			continue
-		}
-		args = append(args, *f.value)
-		set += f.column + " = $" + strconv.Itoa(len(args)) + ", "
+		{"max_organizations", "organizations", p.Organizations}, {"max_prod_signatures", "prod_signatures", p.ProdSignatures},
+		{"max_test_signatures", "test_signatures", p.TestSignatures}, {"max_members", "members", p.Members},
+		{"requests_per_minute", "requests_per_minute", p.RequestsPerMinute}, {"retention_days", "retention_days", p.RetentionDays},
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE workspaces SET `+set+`updated_at = now()
-		WHERE id = $1 AND plan IS NULL`, args...)
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var name string
+		var plan *string
+		old := make([]*int, len(fields))
+		dest := []any{&name, &plan}
+		for i := range old {
+			dest = append(dest, &old[i])
+		}
+		if err := tx.QueryRow(ctx, `SELECT name, plan, max_organizations, max_prod_signatures, max_test_signatures,
+				max_members, requests_per_minute, retention_days
+			FROM workspaces WHERE id = $1 FOR UPDATE`, id).Scan(dest...); err != nil {
+			return notFound(err)
+		}
+		if plan != nil {
+			return ErrHasPlan
+		}
+		args := []any{id}
+		set := ""
+		changes := audit.Changes{}
+		for i, f := range fields {
+			if f.value == nil {
+				continue
+			}
+			args = append(args, *f.value)
+			set += f.column + " = $" + strconv.Itoa(len(args)) + ", "
+			changes.Set(f.name, old[i], *f.value)
+		}
+		if _, err := tx.Exec(ctx, `UPDATE workspaces SET `+set+`updated_at = now() WHERE id = $1`, args...); err != nil {
+			return err
+		}
+		if len(changes) == 0 {
+			return nil
+		}
+		return s.record(ctx, tx, event{workspace: id, action: audit.WorkspaceLimitsChanged, target: audit.TargetWorkspace,
+			targetID: id, label: name, details: map[string]any{"changes": changes}})
+	})
 	if err != nil {
 		return Workspace{}, err
-	}
-	if tag.RowsAffected() == 0 {
-		w, err := s.Workspace(ctx, id)
-		if err != nil {
-			return Workspace{}, err
-		}
-		if w.Plan != nil {
-			return Workspace{}, ErrHasPlan
-		}
 	}
 	return s.Workspace(ctx, id)
 }

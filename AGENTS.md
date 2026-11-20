@@ -33,7 +33,12 @@ el plan y su estado, en [`docs/rebuild.md`](docs/rebuild.md).
     aplican al arrancar), `internal/cache` (las claves en Valkey; el material
     descifrado, solo en memoria), `internal/billing` (la nube),
     `internal/ratelimit` (las firmas por minuto), `internal/retention` (lo
-    vencido del registro de firmas) e `internal/httpapi` (las rutas, con una copia de `contracts/openapi.yaml`
+    vencido del registro de firmas y de la bitácora de auditoría),
+    `internal/audit` (el vocabulario de la bitácora: el actor, las acciones,
+    sus 365 días; cada evento lo escribe `internal/store` en la transacción
+    de su cambio), `internal/notices` (los avisos por
+    correo de cada hora: certificados por vencer y el uso del plan),
+    `internal/mail` (el correo: Resend o el log) e `internal/httpapi` (las rutas, con una copia de `contracts/openapi.yaml`
     que refresca `go generate ./internal/httpapi`, y una prueba que compara
     las rutas con el contrato; y el servidor MCP, `POST /mcp`, en `mcp.go`:
     cada herramienta llama en proceso a su ruta con la misma clave, así que
@@ -58,7 +63,7 @@ el plan y su estado, en [`docs/rebuild.md`](docs/rebuild.md).
 - `podman compose up -d`: Postgres en `127.0.0.1:5434` (base, usuario y
   contraseña `sign`) y Valkey en `127.0.0.1:6381`.
 - `bun install` en la raíz, `bun run db:migrate` en `apps/panel` (las tablas de
-  better-auth) y `bun run dev` (turbo): el panel y el API. El API pide su
+  better-auth y la de los intentos de contraseña) y `bun run dev` (turbo): el panel y el API. El API pide su
   `.env` (copia de `apps/api/.env.example`, con `SIGN_SECRETS_KEY` de
   `openssl rand -base64 32`), y el panel, el suyo.
 - `bun run typecheck`, `bun run test` y `bun run format` (Prettier y gofmt).
@@ -76,7 +81,8 @@ en Go) y las de better-auth, del panel, en el esquema `auth`.
   ofrecen; por defecto `SV,DO,CR,PA,GT`, los que ya se probaron), `CLOUD`
   (`true` en `sign.sello.tax`), `SIGN_RATE_LIMIT_PER_MINUTE` y
   `SIGN_LOG_RETENTION_DAYS` (los límites de los espacios sin plan; vacías,
-  ninguno) y, en la nube, `SIGN_PLATFORM_WORKSPACE_ID` (el
+  ninguno), `RESEND_API_KEY` y `EMAIL_FROM` (los avisos; sin la clave, van
+  al log) y, en la nube, `SIGN_PLATFORM_WORKSPACE_ID` (el
   espacio de Sello), `BILLING_URL`, `BILLING_TOKEN` y `BILLING_PUSH_TOKEN`.
 - Panel: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (= `PANEL_URL`),
   `API_URL`, `CLOUD` y, para entrar con un proveedor OIDC externo (en la nube,

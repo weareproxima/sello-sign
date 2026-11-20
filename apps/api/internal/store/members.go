@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"proxima.la/sello/sign/internal/audit"
 	"proxima.la/sello/sign/internal/model"
 )
 
@@ -46,8 +47,19 @@ func (s *Store) RemoveMember(ctx context.Context, workspaceID, userID string, ac
 				return ErrLastOwner
 			}
 		}
-		_, err = tx.Exec(ctx, `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, workspaceID, userID)
-		return err
+		label, err := memberLabel(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, workspaceID, userID); err != nil {
+			return err
+		}
+		e := event{workspace: workspaceID, action: audit.MemberRemoved, target: audit.TargetMember, targetID: userID,
+			label: label, details: map[string]any{"role": role}}
+		if self {
+			e.action = audit.MemberLeft
+		}
+		return s.record(ctx, tx, e)
 	})
 }
 
@@ -174,6 +186,19 @@ func (s *Store) DeleteAccount(ctx context.Context, userID string) (DeletedAccoun
 		}
 		if out.DeletedSpaces, err = deleteSpaces(ctx, tx, doomed); err != nil {
 			return err
+		}
+		label, err := memberLabel(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		for _, a := range spaces {
+			if a.Outcome != OutcomeLeave {
+				continue
+			}
+			if err := s.record(ctx, tx, event{workspace: a.WorkspaceID, action: audit.MemberLeft, target: audit.TargetMember,
+				targetID: userID, label: label, details: map[string]any{"role": a.Role, "account_deleted": true}}); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM workspace_members WHERE user_id = $1`, userID); err != nil {
 			return err

@@ -331,16 +331,16 @@ func TestRetention(t *testing.T) {
 	close(release)
 
 	var ran bool
-	var deleted int64
+	var purged retention.Purged
 	var err error
 	for range 50 {
-		if ran, deleted, err = retention.Once(ctx, h.db, now); ran || err != nil {
+		if ran, purged, err = retention.Once(ctx, h.db, now); ran || err != nil {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if !ran || err != nil || deleted != 2 {
-		t.Fatalf("purge: ran %v deleted %d %v", ran, deleted, err)
+	if !ran || err != nil || purged.Signatures != 2 || purged.AuditEvents != 0 {
+		t.Fatalf("purge: ran %v purged %+v %v", ran, purged, err)
 	}
 	log := h.expect(h.do("GET", "/workspaces/"+short+"/signatures", ana, nil), 200).items(t)
 	if len(log) != 2 {
@@ -353,7 +353,7 @@ func TestRetention(t *testing.T) {
 		t.Fatalf("usage = %v", items)
 	}
 	// Again, nothing left to delete.
-	if _, deleted, _ := retention.Once(ctx, h.db, now); deleted != 0 {
-		t.Fatalf("deleted again %d", deleted)
+	if _, purged, _ := retention.Once(ctx, h.db, now); purged != (retention.Purged{}) {
+		t.Fatalf("deleted again %+v", purged)
 	}
 }

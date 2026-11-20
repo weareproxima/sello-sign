@@ -124,7 +124,7 @@ func (s *Server) uploadCertificate(w http.ResponseWriter, r *http.Request, c *ca
 		cert.NotAfter = &info.NotAfter
 	}
 	activate := body.Activate == nil || *body.Activate
-	saved, err := s.Store.InsertCertificate(r.Context(), cert, sealed, activate)
+	saved, err := s.Store.InsertCertificate(r.Context(), c.ws.ID, cert, sealed, activate)
 	if err != nil {
 		internalError(w, r, err)
 		return
@@ -152,7 +152,7 @@ func (s *Server) updateCertificate(w http.ResponseWriter, r *http.Request, c *ca
 		writeProblem(w, invalid("Falta «active»."))
 		return
 	}
-	cert, err := s.Store.SetCertificateActive(r.Context(), c.org.ID, r.PathValue("certificate_id"), *body.Active)
+	cert, err := s.Store.SetCertificateActive(r.Context(), c.ws.ID, c.org.ID, r.PathValue("certificate_id"), *body.Active)
 	if errors.Is(err, store.ErrNotFound) {
 		writeProblem(w, errCertificateNotFound)
 		return
@@ -171,7 +171,7 @@ func (s *Server) deleteCertificate(w http.ResponseWriter, r *http.Request, c *ca
 		return
 	}
 	id := r.PathValue("certificate_id")
-	err := s.Store.DeleteCertificate(r.Context(), c.org.ID, id)
+	err := s.Store.DeleteCertificate(r.Context(), c.ws.ID, c.org.ID, id)
 	if errors.Is(err, store.ErrNotFound) {
 		writeProblem(w, errCertificateNotFound)
 		return

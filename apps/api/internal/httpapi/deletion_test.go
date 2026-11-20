@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"proxima.la/sello/sign/internal/audit"
 	"proxima.la/sello/sign/internal/auth"
 )
 
@@ -23,6 +24,7 @@ func rowsOf(t *testing.T, h *harness, ws, org string) map[string]int {
 		"signing_log":       `signed_by_workspace_id = $1 OR $2::uuid IS NULL`,
 		"usage_counters":    `workspace_id = $1 OR $2::uuid IS NULL`,
 		"workspace_usage":   `workspace_id = $1 OR $2::uuid IS NULL`,
+		"audit_events":      `workspace_id = $1 OR $2::uuid IS NULL`,
 	} {
 		var n int
 		if err := h.db.Pool().QueryRow(context.Background(), `SELECT count(*) FROM `+name+` WHERE `+where, ws, org).Scan(&n); err != nil {
@@ -180,6 +182,13 @@ func TestDeleteWorkspaceReturnsToPlatform(t *testing.T) {
 	}
 	h.expect(h.do("POST", "/signatures", platformKey, `{"id":"platform"}`, "X-Organization-Id", oc), 200)
 	h.expect(h.do("POST", "/signatures", onlyKey, `{"id":"again"}`, "X-Organization-Id", oc), 401, "unauthorized")
+	// The platform's audit log says the deleted space gave it back, never
+	// who deleted it.
+	returned := one(t, h.events(staff, platform, ""), audit.OrganizationReturned)
+	if returned.Actor.Type != "workspace" || returned.actorID() != ws.ID || *returned.Actor.Name != "Propio" ||
+		returned.Actor.Email != nil || returned.targetID() != oc {
+		t.Fatalf("returned = %+v", returned)
+	}
 	var n int
 	if err := h.db.Pool().QueryRow(ctx, `SELECT (SELECT count(*) FROM organizations WHERE id = $1)
 		+ (SELECT count(*) FROM delegations WHERE organization_id = $2)`, own, oc).Scan(&n); err != nil {

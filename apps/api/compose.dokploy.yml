@@ -8,8 +8,9 @@
 # DATABASE_URL, SIGN_SECRETS_KEY, PANEL_URL, SIGN_PLATFORM_WORKSPACE_ID,
 # BILLING_TOKEN and BILLING_PUSH_TOKEN (and, if not the defaults, API_URL,
 # BILLING_URL, SIGN_COUNTRIES and LOG_LEVEL; SIGN_SECRETS_KEY_PREVIOUS while
-# the key rotates). A required one that's missing stops the deploy before it
-# touches a container: what ran keeps running.
+# the key rotates; RESEND_API_KEY and EMAIL_FROM for the notices). A
+# required one that's missing stops the deploy before it touches a
+# container: what ran keeps running.
 #
 # Its domain, api.sign.sello.tax, is published by the Traefik labels below
 # (Dokploy's own Traefik, with Let's Encrypt): don't add it again in the
@@ -67,6 +68,12 @@ services:
       BILLING_URL: ${BILLING_URL:-https://billing.sello.tax}
       BILLING_TOKEN: ${BILLING_TOKEN:?falta BILLING_TOKEN en el Environment de Dokploy}
       BILLING_PUSH_TOKEN: ${BILLING_PUSH_TOKEN:?falta BILLING_PUSH_TOKEN en el Environment de Dokploy}
+      # The hourly notices to who administers each space (certificates
+      # about to expire, the plan's usage): Resend's key of the domain
+      # sign.sello.tax, and their sender. Without the key they're only
+      # written to the log.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: '${EMAIL_FROM:-Sello Sign <noreply@sign.sello.tax>}'
       LOG_LEVEL: ${LOG_LEVEL:-info}
     # No `ports`: Traefik reaches it through dokploy-network on 8080.
     networks:

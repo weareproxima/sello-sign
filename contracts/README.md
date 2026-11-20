@@ -17,7 +17,7 @@ con el API de `../sign-old` (decidido el 2026-11-19), salvo donde se dice.
   `openapi.yaml`). La única excepción es el `404` del empuje de billing, cuyo
   `type` es la URI que billing ya reconoce (abajo).
 - Toda lista responde `{ "items": [...], "next_cursor": "…" | null }`. Las que
-  crecen (organizaciones, claves y registro de firmas) se paginan con
+  crecen (organizaciones, claves, registro de firmas y registro de actividad) se paginan con
   `?limit=` (1 a 100, 50 por defecto) y `?cursor=`, de la más nueva a la más
   antigua; las demás (miembros, certificados, delegaciones, las organizaciones
   del IdP…) van enteras, con `next_cursor: null`.
@@ -198,14 +198,16 @@ propia) no hay ninguno salvo los que se configuren: los de la consola
   meses), y los límites del plan.
 - `GET /workspaces/{w}/export` (token, `owner` o `admin`): todo lo del
   espacio en un JSON hecho al momento, que no se guarda en ningún lado
-  (`Content-Disposition: attachment`): `{ "format": "sello-sign-export/1", "exported_at", "workspace", "organizations", "api_keys", "members", "invitations", "usage", "signatures" }`.
+  (`Content-Disposition: attachment`): `{ "format": "sello-sign-export/1", "exported_at", "workspace", "organizations", "api_keys", "members", "invitations", "usage", "audit_events", "signatures" }`.
   Las organizaciones, propias y delegadas, cada una con todos sus
   certificados (solo sus datos públicos, nunca el material ni el PIN; `null`
   si la delegación no deja leerlos) y las delegaciones que dio (`null` en una
   delegada); las claves, también las revocadas (`revoked_at`, `created_by`),
   nunca su hash; las invitaciones abiertas, nunca su token; y el registro de
-  firmas tal como está, dentro de su retención, al final y escrito a medida
-  que se lee (si falla a medias, la descarga se corta).
+  actividad y el de firmas tal como están, dentro de su retención, al final y
+  escritos a medida que se leen (si falla a medias, la descarga se corta).
+  Cada exportación queda en el registro de actividad (`workspace.exported`)
+  antes de enviarse, y es su primer evento.
 - **Borrar la cuenta** (token, solo en una instalación propia; en la nube,
   `404 not-self-hosted`, porque se pide por correo):
   - `GET /me/account-deletion` → `{ "allowed", "workspaces": [{ "id", "name", "role", "members", "organizations", "outcome" }] }`:
@@ -301,6 +303,54 @@ propia) no hay ninguno salvo los que se configuren: los de la consola
   del espacio que firmó («Límites»).
 - `GET /workspaces/{w}/signatures/{s}`.
 
+## Registro de actividad
+
+La bitácora de auditoría: quién cambió qué en un espacio.
+
+- `GET /workspaces/{w}/audit-events?action=&target_type=&target_id=&actor_type=&actor_id=&from=&to=&limit=&cursor=`
+  (token, `owner` o `admin`; un `member`, `403`; una clave, `403`) →
+  `{ "items": [{ "id", "action", "actor": { "type", "id", "email", "name", "via" }, "target": { "type", "id", "label" }, "details", "created_at" }], "next_cursor" }`,
+  del más nuevo al más antiguo.
+- **Qué se registra:** cada cambio que hace una persona (con el token) o una
+  clave (por el API o por el servidor MCP, `via: "mcp"`) al espacio y a lo
+  que guarda: el espacio (`workspace.created`, `workspace.updated`), sus
+  miembros (`member.role_changed`, `member.removed`, `member.left`, también
+  al borrar la cuenta), sus invitaciones (`invitation.created`, `.renewed`,
+  `.revoked`, `.accepted`), sus organizaciones (`organization.created`,
+  `.updated`, `.deleted`, y en la nube `.claimed` y `.returned`), sus
+  certificados (`certificate.uploaded`, `.activated`, `.deactivated`,
+  `.deleted`), sus delegaciones (`delegation.granted`, `.removed`) y sus
+  claves (`api_key.created`, `.revoked`); en la nube, lo que empuja billing
+  (`workspace.plan_changed`, `workspace.updated` con el nombre,
+  `workspace.closed`, `workspace.reopened`), y lo que hace la consola del
+  servidor (`workspace.created`, `member.added`, `workspace.limits_changed`,
+  `api_key.created`); y cada exportación (`workspace.exported`). Nunca las
+  firmas ni las verificaciones: las firmas están en el registro de firmas.
+  Un cambio que no cambia nada no se registra. Cada evento se escribe en la
+  misma transacción que su cambio.
+- **`actor`:** `type` es `user` (la persona: su `user_id`, y el `email` y el
+  `name` de su token en ese momento), `api_key` (su id y su nombre),
+  `billing`, `console`, `workspace` (otro espacio, con su id y su nombre) o
+  `system`. Un cambio de otro espacio a lo que este guarda (una delegación
+  que le dan o le quitan, un certificado que sube a una organización suya
+  quien la tiene delegada, una organización que se lleva o que vuelve a la
+  plataforma) queda en los dos espacios; en el que no actuó, el actor es el
+  otro espacio, nunca su persona ni su clave.
+- **`target`:** `type` (`workspace`, `member`, `invitation`, `organization`,
+  `certificate`, `delegation`, `api_key`), su `id` (el `user_id` de un
+  miembro) y `label`, su nombre en ese momento (el de la organización,
+  también para sus certificados y delegaciones; el de la clave; el correo del
+  miembro o de la invitación).
+- **`details`:** un objeto con lo que dice cada acción (lo que cambió, como
+  `changes: { "name": { "from", "to" } }`, el rol, el ambiente, la serie y el
+  vencimiento de un certificado, los permisos de una delegación o de una
+  clave): la lista, en `AuditAction` de `openapi.yaml`. Nunca un secreto: ni
+  claves ni sus hashes, ni tokens, ni el material de un certificado ni su
+  PIN.
+- No guarda la dirección IP ni el navegador. Cada evento dura 365 días, sea
+  cual sea el plan (una tarea los borra cada hora, con el registro de firmas),
+  y se borra con su espacio.
+
 ## Servidor MCP
 
 `POST /mcp` es el API como servidor [Model Context Protocol](https://modelcontextprotocol.io),
@@ -368,7 +418,10 @@ organización deja de firmar en ese ambiente hasta que se active otro.
 llave privada y su contraseña por el contexto del modelo) y crear una clave
 (le daría un secreto nuevo que podría filtrar). Tampoco están las rutas que
 solo acepta el token del panel (miembros, invitaciones, cambiar el espacio,
-traer organizaciones) ni la firma de prueba del panel.
+traer organizaciones, el registro de actividad) ni la firma de prueba del
+panel. El registro de actividad nombra a personas (los correos de miembros e
+invitados), que ninguna clave lee, y ningún scope de hoy le corresponde
+(`logs:read` es el registro de firmas).
 
 Para conectarlo, con una clave de `test` y los scopes mínimos que necesite
 el agente:

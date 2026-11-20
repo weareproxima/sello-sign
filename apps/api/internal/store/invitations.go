@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"proxima.la/sello/sign/internal/audit"
 	"proxima.la/sello/sign/internal/ids"
 	"proxima.la/sello/sign/internal/model"
 )
@@ -142,7 +143,11 @@ func (s *Store) CreateInvitation(ctx context.Context, n NewInvitation) (Invitati
 		if c, ok := uniqueViolation(err); ok && c == "invitations_open" {
 			return ErrInvitationExists
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		return s.record(ctx, tx, event{workspace: n.WorkspaceID, action: audit.InvitationCreated, target: audit.TargetInvitation,
+			targetID: id, label: n.Email, details: map[string]any{"role": n.Role}})
 	})
 	if err != nil {
 		return Invitation{}, err
@@ -168,15 +173,16 @@ func (s *Store) RevokeInvitation(ctx context.Context, workspaceID, id string) er
 	if !ids.Valid(id) {
 		return ErrNotFound
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE invitations SET revoked_at = $3
-		WHERE workspace_id = $1 AND id = $2 AND accepted_at IS NULL AND revoked_at IS NULL`, workspaceID, id, s.now())
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var email, role string
+		if err := tx.QueryRow(ctx, `UPDATE invitations SET revoked_at = $3
+			WHERE workspace_id = $1 AND id = $2 AND accepted_at IS NULL AND revoked_at IS NULL RETURNING email, role`,
+			workspaceID, id, s.now()).Scan(&email, &role); err != nil {
+			return notFound(err)
+		}
+		return s.record(ctx, tx, event{workspace: workspaceID, action: audit.InvitationRevoked, target: audit.TargetInvitation,
+			targetID: id, label: email, details: map[string]any{"role": role}})
+	})
 }
 
 // InvitationByHash reads the invitation of a token's hash, unless it was
@@ -236,9 +242,14 @@ func (s *Store) AcceptInvitation(ctx context.Context, hash []byte, userID, email
 				return err
 			}
 		}
-		_, err = tx.Exec(ctx, `UPDATE invitations SET accepted_at = $2, accepted_by = $3 WHERE id = $1`, inv.ID, now, userID)
+		if _, err := tx.Exec(ctx, `UPDATE invitations SET accepted_at = $2, accepted_by = $3 WHERE id = $1`, inv.ID, now, userID); err != nil {
+			return err
+		}
 		inv.AcceptedAt, inv.AcceptedBy = &now, &userID
-		return err
+		// joined is false for someone already in the space, who keeps
+		// their role.
+		return s.record(ctx, tx, event{workspace: inv.WorkspaceID, action: audit.InvitationAccepted, target: audit.TargetInvitation,
+			targetID: inv.ID, label: inv.Email, details: map[string]any{"role": inv.Role, "joined": !member}})
 	})
 	return inv, err
 }
@@ -276,9 +287,16 @@ func (s *Store) ChangeRole(ctx context.Context, workspaceID, userID string, to, 
 				return ErrLastOwner
 			}
 		}
-		_, err = tx.Exec(ctx, `UPDATE workspace_members SET role = $3 WHERE workspace_id = $1 AND user_id = $2`,
-			workspaceID, userID, string(to))
-		return err
+		if _, err := tx.Exec(ctx, `UPDATE workspace_members SET role = $3 WHERE workspace_id = $1 AND user_id = $2`,
+			workspaceID, userID, string(to)); err != nil {
+			return err
+		}
+		label, err := memberLabel(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		return s.record(ctx, tx, event{workspace: workspaceID, action: audit.MemberRoleChanged, target: audit.TargetMember,
+			targetID: userID, label: label, details: map[string]any{"from": from, "to": to}})
 	})
 	if err != nil {
 		return Member{}, err
@@ -333,9 +351,12 @@ func (s *Store) RenewInvitation(ctx context.Context, workspaceID, id string, has
 			}
 			return err
 		}
-		_, err = tx.Exec(ctx, `UPDATE invitations SET hash = $2, expires_at = $3 WHERE id = $1`,
-			id, hash, now.Add(InvitationLifetime))
-		return err
+		if _, err := tx.Exec(ctx, `UPDATE invitations SET hash = $2, expires_at = $3 WHERE id = $1`,
+			id, hash, now.Add(InvitationLifetime)); err != nil {
+			return err
+		}
+		return s.record(ctx, tx, event{workspace: workspaceID, action: audit.InvitationRenewed, target: audit.TargetInvitation,
+			targetID: id, label: email, details: map[string]any{"role": role}})
 	})
 	if err != nil {
 		return Invitation{}, err

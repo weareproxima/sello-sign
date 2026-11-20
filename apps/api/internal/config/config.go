@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/mail"
 	"net/url"
 	"os"
 	"slices"
@@ -41,9 +42,18 @@ type Config struct {
 	// each space's.
 	RequestsPerMinute *int
 	LogRetentionDays  *int
-	LogFormat         string
-	LogLevel          string
+	// ResendAPIKey sends the notices through Resend (RESEND_API_KEY); ""
+	// writes them to the log. EmailFrom is their sender (EMAIL_FROM). The
+	// same variables as the panel's.
+	ResendAPIKey string
+	EmailFrom    string
+	LogFormat    string
+	LogLevel     string
 }
+
+// DefaultEmailFrom is the notices' sender when EMAIL_FROM is unset: the
+// panel's.
+const DefaultEmailFrom = "Sello Sign <noreply@sign.sello.tax>"
 
 // Billing says the cloud talks to Sello's billing.
 func (c Config) Billing() bool {
@@ -70,6 +80,8 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		BillingURL:         strings.TrimRight(get("BILLING_URL", ""), "/"),
 		BillingToken:       get("BILLING_TOKEN", ""),
 		BillingPushToken:   get("BILLING_PUSH_TOKEN", ""),
+		ResendAPIKey:       get("RESEND_API_KEY", ""),
+		EmailFrom:          get("EMAIL_FROM", DefaultEmailFrom),
 		LogFormat:          get("LOG_FORMAT", "json"),
 		LogLevel:           get("LOG_LEVEL", "info"),
 	}
@@ -104,6 +116,9 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		if u, err := url.Parse(v); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			return Config{}, fmt.Errorf("config: %s must be an http(s) URL", name)
 		}
+	}
+	if _, err := mail.ParseAddress(c.EmailFrom); err != nil {
+		return Config{}, errors.New("config: EMAIL_FROM must be an address, like " + DefaultEmailFrom)
 	}
 	countries := get("SIGN_COUNTRIES", strings.Join(DefaultCountries, ","))
 	for _, cc := range strings.Split(countries, ",") {

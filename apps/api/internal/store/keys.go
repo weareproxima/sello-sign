@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"proxima.la/sello/sign/internal/audit"
 	"proxima.la/sello/sign/internal/auth"
 	"proxima.la/sello/sign/internal/ids"
 	"proxima.la/sello/sign/internal/model"
@@ -46,11 +47,21 @@ func (s *Store) CreateAPIKey(ctx context.Context, n NewAPIKey) (APIKey, error) {
 	if n.CreatedBy != "" {
 		by = n.CreatedBy
 	}
-	if _, err := s.pool.Exec(ctx, `INSERT INTO api_keys
-		(id, workspace_id, organization_id, environment, name, scopes, hash, prefix, created_by, requests_per_minute)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-		id, n.WorkspaceID, n.OrganizationID, string(n.Environment), n.Name, model.Strings(n.Scopes), n.Hash, n.Prefix, by,
-		n.RequestsPerMinute); err != nil {
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO api_keys
+			(id, workspace_id, organization_id, environment, name, scopes, hash, prefix, created_by, requests_per_minute)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			id, n.WorkspaceID, n.OrganizationID, string(n.Environment), n.Name, model.Strings(n.Scopes), n.Hash, n.Prefix, by,
+			n.RequestsPerMinute); err != nil {
+			return err
+		}
+		return s.record(ctx, tx, event{workspace: n.WorkspaceID, action: audit.APIKeyCreated, target: audit.TargetAPIKey,
+			targetID: id, label: n.Name, details: map[string]any{
+				"environment": n.Environment, "scopes": model.Strings(n.Scopes), "organization_id": n.OrganizationID,
+				"requests_per_minute": n.RequestsPerMinute,
+			}})
+	})
+	if err != nil {
 		return APIKey{}, err
 	}
 	return scanKey(s.pool.QueryRow(ctx, `SELECT `+keyColumns+` FROM api_keys k WHERE k.id = $1`, id))
@@ -94,9 +105,18 @@ func (s *Store) RevokeAPIKey(ctx context.Context, workspaceID, id string) ([]byt
 		return nil, ErrNotFound
 	}
 	var hash []byte
-	err := s.pool.QueryRow(ctx, `UPDATE api_keys SET revoked_at = now()
-		WHERE workspace_id = $1 AND id = $2 AND revoked_at IS NULL RETURNING hash`, workspaceID, id).Scan(&hash)
-	return hash, notFound(err)
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var name, env string
+		var org *string
+		if err := tx.QueryRow(ctx, `UPDATE api_keys SET revoked_at = now()
+			WHERE workspace_id = $1 AND id = $2 AND revoked_at IS NULL RETURNING hash, name, environment, organization_id`,
+			workspaceID, id).Scan(&hash, &name, &env, &org); err != nil {
+			return notFound(err)
+		}
+		return s.record(ctx, tx, event{workspace: workspaceID, action: audit.APIKeyRevoked, target: audit.TargetAPIKey,
+			targetID: id, label: name, details: map[string]any{"environment": env, "organization_id": org}})
+	})
+	return hash, err
 }
 
 // KeyByHash finds a live key by its hash.

@@ -3,10 +3,12 @@ package store
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 
+	"proxima.la/sello/sign/internal/audit"
 	"proxima.la/sello/sign/internal/ids"
 	"proxima.la/sello/sign/internal/model"
 )
@@ -150,8 +152,15 @@ func (s *Store) CreateOrganization(ctx context.Context, n NewOrganization) (Orga
 		if c, ok := uniqueViolation(err); ok && strings.Contains(c, "sello_workspace_id") {
 			return ErrSelloLinked
 		}
-		created = err == nil
-		return err
+		if err != nil {
+			return err
+		}
+		created = true
+		return s.record(ctx, tx, event{workspace: n.WorkspaceID, action: audit.OrganizationCreated, target: audit.TargetOrganization,
+			targetID: id, label: n.Name, details: map[string]any{
+				"tax_id": strings.TrimSpace(n.TaxID), "country": n.Country, "contact_email": n.ContactEmail,
+				"sello_workspace_id": n.SelloWorkspaceID,
+			}})
 	})
 	if err != nil {
 		return Organization{}, false, err
@@ -198,9 +207,9 @@ func (s *Store) DelegateLinked(ctx context.Context, platformID, selloID, taxID, 
 	}
 	var id string
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var owner, gotTaxID, gotCountry string
-		err := tx.QueryRow(ctx, `SELECT id, workspace_id, tax_id, country FROM organizations WHERE sello_workspace_id = $1 FOR UPDATE`,
-			selloID).Scan(&id, &owner, &gotTaxID, &gotCountry)
+		var owner, name, gotTaxID, gotCountry string
+		err := tx.QueryRow(ctx, `SELECT id, workspace_id, name, tax_id, country FROM organizations WHERE sello_workspace_id = $1 FOR UPDATE`,
+			selloID).Scan(&id, &owner, &name, &gotTaxID, &gotCountry)
 		if err == pgx.ErrNoRows || (err == nil && owner == platformID) {
 			return ErrSelloLinked
 		}
@@ -212,11 +221,31 @@ func (s *Store) DelegateLinked(ctx context.Context, platformID, selloID, taxID, 
 		if model.TaxIDKey(gotTaxID) != model.TaxIDKey(taxID) || !strings.EqualFold(gotCountry, country) {
 			return ErrSelloMismatch
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO delegations (id, organization_id, workspace_id, scopes, locked)
+		scopes := model.Strings(model.PlatformDelegationScopes)
+		var had struct {
+			id     string
+			scopes []string
+			locked bool
+		}
+		err = tx.QueryRow(ctx, `SELECT id, scopes, locked FROM delegations WHERE organization_id = $1 AND workspace_id = $2 FOR UPDATE`,
+			id, platformID).Scan(&had.id, &had.scopes, &had.locked)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			had.id = ids.New()
+		case err != nil:
+			return err
+		case had.locked && slices.Equal(had.scopes, scopes):
+			return nil
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO delegations (id, organization_id, workspace_id, scopes, locked)
 			VALUES ($1, $2, $3, $4, true)
 			ON CONFLICT (organization_id, workspace_id) DO UPDATE SET scopes = EXCLUDED.scopes, locked = true`,
-			ids.New(), id, platformID, model.Strings(model.PlatformDelegationScopes))
-		return err
+			had.id, id, platformID, scopes); err != nil {
+			return err
+		}
+		return s.recordDelegation(ctx, tx, audit.DelegationGranted, platformID, owner, id, name, delegationFacts{
+			id: had.id, delegate: platformID, scopes: scopes, locked: true,
+		})
 	})
 	if err != nil {
 		return Organization{}, err
@@ -241,41 +270,90 @@ func (s *Store) UpdateOrganization(ctx context.Context, id string, p Organizatio
 	if p.SelloWorkspaceID != nil {
 		sello = *p.SelloWorkspaceID
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE organizations SET
-			name = COALESCE($2, name),
-			contact_email = CASE WHEN $3 THEN $4 ELSE contact_email END,
-			sello_workspace_id = CASE WHEN $5 THEN $6 ELSE sello_workspace_id END,
-			updated_at = now()
-		WHERE id = $1`, id, p.Name, p.ContactEmail != nil, email, p.SelloWorkspaceID != nil, sello)
-	if c, ok := uniqueViolation(err); ok && strings.Contains(c, "sello_workspace_id") {
-		return ErrSelloLinked
-	}
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		var owner, name string
+		var oldEmail, oldSello *string
+		if err := tx.QueryRow(ctx, `SELECT workspace_id, name, contact_email, sello_workspace_id FROM organizations
+			WHERE id = $1 FOR UPDATE`, id).Scan(&owner, &name, &oldEmail, &oldSello); err != nil {
+			return notFound(err)
+		}
+		_, err := tx.Exec(ctx, `UPDATE organizations SET
+				name = COALESCE($2, name),
+				contact_email = CASE WHEN $3 THEN $4 ELSE contact_email END,
+				sello_workspace_id = CASE WHEN $5 THEN $6 ELSE sello_workspace_id END,
+				updated_at = now()
+			WHERE id = $1`, id, p.Name, p.ContactEmail != nil, email, p.SelloWorkspaceID != nil, sello)
+		if c, ok := uniqueViolation(err); ok && strings.Contains(c, "sello_workspace_id") {
+			return ErrSelloLinked
+		}
+		if err != nil {
+			return err
+		}
+		changes := audit.Changes{}
+		if p.Name != nil {
+			changes.Set("name", name, *p.Name)
+			name = *p.Name
+		}
+		if p.ContactEmail != nil {
+			changes.Set("contact_email", oldEmail, email)
+		}
+		if p.SelloWorkspaceID != nil {
+			changes.Set("sello_workspace_id", oldSello, sello)
+		}
+		if len(changes) == 0 {
+			return nil
+		}
+		return s.record(ctx, tx, event{workspace: owner, action: audit.OrganizationUpdated, target: audit.TargetOrganization,
+			targetID: id, label: name, details: map[string]any{"changes": changes}})
+	})
 }
 
 // DeleteOrganization deletes an organization with its certificates and
 // keys; one that is delegated is ErrHasDelegations. Its log and usage stay.
+// Its keys, which go with it, are recorded as revoked in their spaces.
 func (s *Store) DeleteOrganization(ctx context.Context, id string) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var n int
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM delegations WHERE organization_id = $1`, id).Scan(&n); err != nil {
+		var owner, name, taxID, country string
+		if err := tx.QueryRow(ctx, `SELECT workspace_id, name, tax_id, country FROM organizations WHERE id = $1 FOR UPDATE`,
+			id).Scan(&owner, &name, &taxID, &country); err != nil {
+			return notFound(err)
+		}
+		var n, certificates int
+		if err := tx.QueryRow(ctx, `SELECT (SELECT count(*) FROM delegations WHERE organization_id = $1),
+			(SELECT count(*) FROM certificates WHERE organization_id = $1)`, id).Scan(&n, &certificates); err != nil {
 			return err
 		}
 		if n > 0 {
 			return ErrHasDelegations
 		}
-		tag, err := tx.Exec(ctx, `DELETE FROM organizations WHERE id = $1`, id)
+		type gone struct{ id, workspace, name, env string }
+		rows, err := tx.Query(ctx, `SELECT id, workspace_id, name, environment FROM api_keys
+			WHERE organization_id = $1 AND revoked_at IS NULL ORDER BY id`, id)
 		if err != nil {
 			return err
 		}
-		if tag.RowsAffected() == 0 {
-			return ErrNotFound
+		keys, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (gone, error) {
+			var k gone
+			err := r.Scan(&k.id, &k.workspace, &k.name, &k.env)
+			return k, err
+		})
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM organizations WHERE id = $1`, id); err != nil {
+			return err
+		}
+		if err := s.record(ctx, tx, event{workspace: owner, action: audit.OrganizationDeleted, target: audit.TargetOrganization,
+			targetID: id, label: name, details: map[string]any{"tax_id": taxID, "country": country, "certificates": certificates}}); err != nil {
+			return err
+		}
+		for _, k := range keys {
+			if err := s.record(ctx, tx, event{workspace: k.workspace, action: audit.APIKeyRevoked, target: audit.TargetAPIKey,
+				targetID: k.id, label: k.name, details: map[string]any{
+					"environment": k.env, "organization_id": id, "reason": "organization_deleted",
+				}}); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -317,18 +395,27 @@ func (s *Store) ClaimOrganizations(ctx context.Context, target, platformID strin
 		if err != nil {
 			return err
 		}
-		rows, err := tx.Query(ctx, `SELECT id FROM organizations
+		type claimed struct{ id, name, taxID, country string }
+		rows, err := tx.Query(ctx, `SELECT id, name, tax_id, country FROM organizations
 			WHERE id = ANY($1) AND workspace_id = $2 AND sello_workspace_id = ANY($3)
-			FOR UPDATE`, orgIDs, platformID, selloIDs)
+			ORDER BY id FOR UPDATE`, orgIDs, platformID, selloIDs)
 		if err != nil {
 			return err
 		}
-		found, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		orgs, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (claimed, error) {
+			var o claimed
+			err := r.Scan(&o.id, &o.name, &o.taxID, &o.country)
+			return o, err
+		})
 		if err != nil {
 			return err
 		}
-		if len(found) != len(dedupe(orgIDs)) {
+		if len(orgs) != len(dedupe(orgIDs)) {
 			return ErrNotClaimable
+		}
+		found := make([]string, len(orgs))
+		for i, o := range orgs {
+			found[i] = o.id
 		}
 		if err := withinOrganizationLimit(ctx, tx, target, allowed, len(found)); err != nil {
 			return err
@@ -346,11 +433,38 @@ func (s *Store) ClaimOrganizations(ctx context.Context, target, platformID strin
 		}
 		// The platform's keys of a single organization keep working through
 		// the delegation.
-		_, err = tx.Exec(ctx, `INSERT INTO delegations (id, organization_id, workspace_id, scopes, locked)
+		if _, err := tx.Exec(ctx, `INSERT INTO delegations (id, organization_id, workspace_id, scopes, locked)
 			SELECT x.id, x.org, $1, $3, true FROM unnest($4::uuid[], $2::uuid[]) AS x(id, org)
 			ON CONFLICT (organization_id, workspace_id) DO UPDATE SET scopes = EXCLUDED.scopes, locked = true`,
-			platformID, found, model.Strings(model.PlatformDelegationScopes), newIDs(len(found)))
-		return err
+			platformID, found, model.Strings(model.PlatformDelegationScopes), newIDs(len(found))); err != nil {
+			return err
+		}
+		// In the space that brings them, with its person; in the platform's,
+		// with that space as the actor.
+		from, err := workspaceName(ctx, tx, platformID)
+		if err != nil {
+			return err
+		}
+		to, err := workspaceName(ctx, tx, target)
+		if err != nil {
+			return err
+		}
+		by := audit.Space(target)
+		for _, o := range orgs {
+			e := event{workspace: target, action: audit.OrganizationClaimed, target: audit.TargetOrganization, targetID: o.id,
+				label: o.name, details: map[string]any{
+					"tax_id": o.taxID, "country": o.country, "from_workspace_id": platformID, "from_workspace_name": from,
+					"to_workspace_id": target, "to_workspace_name": to,
+				}}
+			if err := s.record(ctx, tx, e); err != nil {
+				return err
+			}
+			e.workspace, e.actor = platformID, &by
+			if err := s.record(ctx, tx, e); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err

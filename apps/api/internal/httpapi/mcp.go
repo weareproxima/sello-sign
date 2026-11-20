@@ -207,7 +207,8 @@ func (s *Server) mcpDispatch(ctx context.Context, tool, key string, c mcpCall) *
 	if c.body != nil {
 		body = bytes.NewReader(c.body)
 	}
-	req, err := http.NewRequestWithContext(ctx, c.method, target, body)
+	// The route records its changes as the key's, through the MCP server.
+	req, err := http.NewRequestWithContext(context.WithValue(ctx, viaMCPKey{}, true), c.method, target, body)
 	if err != nil {
 		slog.ErrorContext(ctx, "mcp: could not build a request", "tool", tool, "error", err)
 		return mcpError(map[string]any{"type": errInternal.Type, "status": errInternal.Status, "detail": errInternal.Detail})
