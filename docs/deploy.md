@@ -5,11 +5,11 @@ el API en el VPS con Dokploy (un contenedor) y una sola base en Neon. Una
 instalación propia usa las mismas piezas como quiera (el panel también corre
 en Node: `bun run build` y `bun run start`).
 
-| Pieza | Dónde                                  | Qué se publica                                                                             |
-| ----- | -------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Base  | Neon, base `sign`                      | `public`, del API (sus migraciones, al arrancar); `auth`, del panel (`bun run db:migrate`) |
-| API   | Dokploy, `api.sign.sello.tax`          | `apps/api/compose.dokploy.yml`: el API (`apps/api/Containerfile`) y su Valkey              |
-| Panel | Cloudflare Workers, nombre por decidir | `apps/panel` con `bun run deploy` (`wrangler.jsonc`)                                       |
+| Pieza | Dónde                                                                             | Qué se publica                                                                             |
+| ----- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Base  | Neon, base `sign`                                                                 | `public`, del API (sus migraciones, al arrancar); `auth`, del panel (`bun run db:migrate`) |
+| API   | Dokploy, `api.sign.sello.tax`                                                     | `apps/api/compose.dokploy.yml`: el API (`apps/api/Containerfile`) y su Valkey              |
+| Panel | Cloudflare Workers, `sello-sign-panel`, en `sign.sello.tax` (desde el 2026-11-19) | `apps/panel` con `bun run deploy` (`wrangler.jsonc`)                                       |
 
 ## Lo que decide el dueño antes
 

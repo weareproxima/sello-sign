@@ -11,12 +11,11 @@
 	//    unless this one replaces it on purpose: a deploy under that name
 	//    overwrites it.
 	"name": "sello-sign-panel",
-	// 2. Its address: a Custom Domain on the sello.tax zone. Uncomment one:
-	//    the new panel replacing the old Worker (remove the domain from
-	//    `sello-sign` first), or a new name. Without `routes` it is only on
-	//    workers.dev.
-	// "routes": [{ "pattern": "sign.sello.tax", "custom_domain": true }],
-	// "routes": [{ "pattern": "panel.sign.sello.tax", "custom_domain": true }],
+	// 2. Its address: a Custom Domain on the sello.tax zone. Since
+	//    2026-11-19 the new panel replaces the old Worker on sign.sello.tax
+	//    (the old `sello-sign` stays published, without the domain, as the
+	//    way back: docs/deploy.md). Without `routes` it is only on workers.dev.
+	"routes": [{ "pattern": "sign.sello.tax", "custom_domain": true }],
 	// 3. BETTER_AUTH_URL, in `vars` below: that same address, with https://.
 	// ────────────────────────────────────────────────────────────────────
 
@@ -38,7 +37,7 @@
 		// The panel's own origin, with https:// and without a trailing slash:
 		// the `iss` of its tokens and the API's PANEL_URL. Empty, the panel
 		// answers 500 until it's set (src/lib/auth.ts).
-		"BETTER_AUTH_URL": "",
+		"BETTER_AUTH_URL": "https://sign.sello.tax",
 		// The API's origin: the `aud` of the tokens (the API's API_URL) and
 		// where /api/sign/* goes.
 		"API_URL": "https://api.sign.sello.tax",
