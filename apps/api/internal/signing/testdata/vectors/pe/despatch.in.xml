@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DespatchAdvice xmlns="urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">
+	<ext:UBLExtensions>
+		<ext:UBLExtension>
+			<ext:ExtensionContent/>
+		</ext:UBLExtension>
+	</ext:UBLExtensions>
+	<cbc:ID>T001-00000005</cbc:ID>
+	<cbc:IssueDate>2026-01-15</cbc:IssueDate>
+	<cbc:DespatchAdviceTypeCode>09</cbc:DespatchAdviceTypeCode>
+</DespatchAdvice>

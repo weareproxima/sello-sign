@@ -1,0 +1,6 @@
+# Never in the build context: local secrets and builds (Docker and Podman both
+# read this file).
+.env
+.env.*
+!.env.example
+bin/

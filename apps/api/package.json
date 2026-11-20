@@ -1,0 +1,14 @@
+{
+	"name": "api",
+	"private": true,
+	"scripts": {
+		"dev": "go run ./cmd/api",
+		"build": "go build -o bin/api ./cmd/api",
+		"typecheck": "go vet ./...",
+		"test": "go test ./...",
+		"test:pg": "POSTGRES_TEST_URL=${POSTGRES_TEST_URL:-postgres://sign:sign@127.0.0.1:5434/sign} go test ./...",
+		"migrate": "go run ./cmd/api migrate",
+		"console": "go run ./cmd/api",
+		"contract": "go generate ./internal/httpapi"
+	}
+}

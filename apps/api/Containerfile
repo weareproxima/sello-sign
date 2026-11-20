@@ -1,0 +1,41 @@
+# Sello Sign's API (cmd/api, api.sign.sello.tax): one static binary on a
+# distroless image, run as a user without privileges. Built from this
+# directory:
+#
+#   podman build -f apps/api/Containerfile -t sello-sign-api apps/api
+#
+# It listens on 0.0.0.0:8080 (ADDR) behind the proxy and applies its pending
+# migrations when it starts. Its configuration is the environment's
+# (docs/deploy.md): DATABASE_URL, SIGN_SECRETS_KEY, PANEL_URL, API_URL and,
+# in the cloud, REDIS_URL, CLOUD, SIGN_PLATFORM_WORKSPACE_ID and the
+# BILLING_*. Nothing is kept on disk.
+#
+# The same binary is the console, run in the running container with that
+# same environment, so no secret leaves the server:
+#
+#   docker exec <container> /api workspace create -name "Sello" -country SV
+#   docker exec <container> /api key create -workspace <id> -environment prod
+
+ARG GO_VERSION=1.26.7
+
+FROM docker.io/library/golang:${GO_VERSION}-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o /out/api ./cmd/api
+
+# Distroless's static image: CA certificates (the panel's JWKS and billing
+# are HTTPS) and the time zones, no shell. `nonroot` is uid 65532.
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/api /api
+ENV ADDR=0.0.0.0:8080 \
+	LOG_FORMAT=json
+EXPOSE 8080
+USER nonroot:nonroot
+# The binary asks itself (`api health`), since the image has no curl. Podman
+# keeps it only when building with `--format docker`; Docker, always.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+	CMD ["/api", "health"]
+ENTRYPOINT ["/api"]
+CMD ["serve"]

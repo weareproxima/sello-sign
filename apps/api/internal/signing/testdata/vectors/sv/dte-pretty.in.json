@@ -1,0 +1,18 @@
+{
+  "identificacion": {
+    "version": 1,
+    "ambiente": "00",
+    "tipoDte": "01",
+    "numeroControl": "DTE-01-00000001-000000000000001",
+    "codigoGeneracion": "B3B1C7D0-1234-4E56-9ABC-1234567890AB",
+    "fecEmi": "2026-09-02",
+    "horEmi": "10:00:00"
+  },
+  "emisor": {
+    "nit": "06141804941035",
+    "nombre": "Empresa de Prueba SA de CV"
+  },
+  "resumen": {
+    "totalPagar": 118
+  }
+}

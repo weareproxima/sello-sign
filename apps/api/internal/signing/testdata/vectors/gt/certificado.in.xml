@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dte:GTDocumento xmlns:dte="http://www.sat.gob.gt/dte/fel/0.2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Version="0.1">
+	<dte:SAT ClaseDocumento="dte">
+		<dte:DTE ID="DatosCertificados">
+			<dte:DatosEmision ID="DatosEmision">
+				<dte:DatosGenerales CodigoMoneda="GTQ" FechaHoraEmision="2026-01-15T10:30:00-06:00" NumeroAcceso="987654321" Tipo="FACT"/>
+				<dte:Emisor AfiliacionIVA="GEN" CodigoEstablecimiento="1" CorreoEmisor="facturacion@empresa.com.gt" NITEmisor="12345678" NombreComercial="Empresa Test" NombreEmisor="EMPRESA TEST, SOCIEDAD ANONIMA">
+					<dte:DireccionEmisor>
+						<dte:Direccion>4a calle 5-55 zona 10</dte:Direccion>
+						<dte:CodigoPostal>01010</dte:CodigoPostal>
+						<dte:Municipio>Guatemala</dte:Municipio>
+						<dte:Departamento>Guatemala</dte:Departamento>
+						<dte:Pais>GT</dte:Pais>
+					</dte:DireccionEmisor>
+				</dte:Emisor>
+				<dte:Receptor CorreoReceptor="cliente@example.com" IDReceptor="CF" NombreReceptor="CONSUMIDOR FINAL">
+					<dte:DireccionReceptor>
+						<dte:Direccion>Ciudad</dte:Direccion>
+						<dte:CodigoPostal>01001</dte:CodigoPostal>
+						<dte:Municipio>Guatemala</dte:Municipio>
+						<dte:Departamento>Guatemala</dte:Departamento>
+						<dte:Pais>GT</dte:Pais>
+					</dte:DireccionReceptor>
+				</dte:Receptor>
+				<dte:Frases>
+					<dte:Frase CodigoEscenario="1" TipoFrase="1"/>
+				</dte:Frases>
+				<dte:Items>
+					<dte:Item BienOServicio="S" NumeroLinea="1">
+						<dte:Cantidad>1</dte:Cantidad>
+						<dte:Descripcion>Servicio de facturacion electronica</dte:Descripcion>
+						<dte:PrecioUnitario>100.00</dte:PrecioUnitario>
+						<dte:Precio>100.00</dte:Precio>
+						<dte:Descuento>0.00</dte:Descuento>
+						<dte:Impuestos>
+							<dte:Impuesto>
+								<dte:NombreCorto>IVA</dte:NombreCorto>
+								<dte:CodigoUnidadGravable>1</dte:CodigoUnidadGravable>
+								<dte:MontoGravable>89.29</dte:MontoGravable>
+								<dte:MontoImpuesto>10.71</dte:MontoImpuesto>
+							</dte:Impuesto>
+						</dte:Impuestos>
+						<dte:Total>100.00</dte:Total>
+					</dte:Item>
+				</dte:Items>
+				<dte:Totales>
+					<dte:TotalImpuestos>
+						<dte:TotalImpuesto NombreCorto="IVA" TotalMontoImpuesto="10.71"/>
+					</dte:TotalImpuestos>
+					<dte:GranTotal>100.00</dte:GranTotal>
+				</dte:Totales>
+			</dte:DatosEmision>
+			<dte:Certificacion>
+				<dte:NITCertificador>987654321</dte:NITCertificador>
+				<dte:NombreCertificador>CERTIFICADOR TEST, S.A.</dte:NombreCertificador>
+				<dte:NumeroAutorizacion Numero="1234567890" Serie="A1B2C3D4">A1B2C3D4-1234-4567-89AB-CDEF01234567</dte:NumeroAutorizacion>
+				<dte:FechaHoraCertificacion>2026-01-15T10:31:00-06:00</dte:FechaHoraCertificacion>
+			</dte:Certificacion>
+		</dte:DTE>
+	</dte:SAT>
+	<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="FirmaCertificador"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/></ds:SignedInfo><ds:SignatureValue>Zm9v</ds:SignatureValue></ds:Signature>
+</dte:GTDocumento>

@@ -1,0 +1,96 @@
+{
+	"country": "CR",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "fe",
+			"content_type": "application/xml",
+			"input": "fe.in.xml",
+			"output": "fe.out.xml",
+			"document_id": "50601042000310123456700100001010000000011199999999",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "ab640689f1f370cd0afd979e4ecc53a1",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "ab640689-f1f3-40cd-8afd-979e4ecc53a1"
+				}
+			]
+		},
+		{
+			"name": "edge",
+			"content_type": "application/xml",
+			"input": "edge.in.xml",
+			"output": "edge.out.xml",
+			"document_id": "50601042000310123456700100001010000000011199999999",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "54997ff63d363a496da4574383a8d9da",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "54997ff6-3d36-4a49-ada4-574383a8d9da"
+				}
+			]
+		},
+		{
+			"name": "root-ds",
+			"note": "xmlns:ds already on the root",
+			"content_type": "application/xml",
+			"input": "root-ds.in.xml",
+			"output": "root-ds.out.xml",
+			"document_id": "50601042000310123456700100001010000000011199999999",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "72d8670df27ee548353bc273cb06c089",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "72d8670d-f27e-4548-b53b-c273cb06c089"
+				}
+			]
+		},
+		{
+			"name": "nota-credito",
+			"note": "document type 03 from the root name",
+			"content_type": "application/xml",
+			"input": "nota-credito.in.xml",
+			"output": "nota-credito.out.xml",
+			"document_id": "50601042000310123456700100001010000000011199999999",
+			"document_type": "03",
+			"self_verified": true,
+			"random": "fc067e9b42297212773538159007b63a",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "fc067e9b-4229-4212-b735-38159007b63a"
+				}
+			]
+		},
+		{
+			"name": "no-clave",
+			"note": "no Clave: the document id is random",
+			"content_type": "application/xml",
+			"input": "no-clave.in.xml",
+			"output": "no-clave.out.xml",
+			"document_id": "3F2A0936-B851-41CB-BF8C-067FF484AD2B",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "c4786aa3e47f5a267bb8c5675bbd90d13f2a0936b85131cbff8c067ff484ad2b",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "c4786aa3-e47f-4a26-bbb8-c5675bbd90d1"
+				},
+				{
+					"fn": "randomUUID",
+					"result": "3f2a0936-b851-41cb-bf8c-067ff484ad2b"
+				}
+			]
+		}
+	]
+}

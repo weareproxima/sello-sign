@@ -1,0 +1,395 @@
+{
+	"country": "EC",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "factura",
+			"content_type": "application/xml",
+			"input": "factura.in.xml",
+			"output": "factura.out.xml",
+			"document_id": "2201202601179123456700110010010000000011234567814",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "3fe8f96be4819bbc448bc03640dbe54c5bade20c1f964c974b935b3aa0b96bfeaf305993b45a287abae9857b35b047e9",
+			"random_calls": [
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 750183
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 477316
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 576147
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 916621
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 287591
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 512665
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 6191
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 356799
+				}
+			]
+		},
+		{
+			"name": "edge",
+			"content_type": "application/xml",
+			"input": "edge.in.xml",
+			"output": "edge.out.xml",
+			"document_id": "2201202601179123456700110010010000000011234567814",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "020ce38ea69ee1e1303309d0693efa5b78b5d2a9a7e5015425efe29cebb5a6585856b214e01a5c0cac10e4c5bc33125e",
+			"random_calls": [
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 277892
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 441406
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 232499
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 76130
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 330219
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 860546
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 574862
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 860876
+				}
+			]
+		},
+		{
+			"name": "no-id",
+			"note": "root without id: the signer adds id=\"comprobante\"",
+			"content_type": "application/xml",
+			"input": "no-id.in.xml",
+			"output": "no-id.out.xml",
+			"document_id": "2201202601179123456700110010010000000011234567814",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "e7ebf267c68e9693b349a281fcbe06d52cb067c487426df97defe192dc62140f89c9f03b309040371fc4cc2bb206c966",
+			"random_calls": [
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 45116
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 146295
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 879686
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 517623
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 997008
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 825777
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 339298
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 205244
+				}
+			]
+		},
+		{
+			"name": "nota-credito",
+			"content_type": "application/xml",
+			"input": "nota-credito.in.xml",
+			"output": "nota-credito.out.xml",
+			"document_id": "2201202601179123456700110010010000000011234567814",
+			"document_type": "04",
+			"self_verified": true,
+			"random": "d4bdafb91e29ea5b5dec385d57635ee4db03f64f5af1bd94299a60efb02db0d1dd9f42ff70a09932b1f84f1c7bbb17c8",
+			"random_calls": [
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 360127
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 760523
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 921385
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 422418
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 840331
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 878541
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 341670
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 362470
+				}
+			]
+		},
+		{
+			"name": "no-clave",
+			"note": "no claveAcceso and no codDoc: random id, type from the root name",
+			"content_type": "application/xml",
+			"input": "no-clave.in.xml",
+			"output": "no-clave.out.xml",
+			"document_id": "CFA18FEC-A75A-4A39-9F25-6479E6D023E5",
+			"document_type": "06",
+			"self_verified": true,
+			"random": "2526af8ebfee86185df8e641c806ed9975d4b593b1d61f3ac790d280ecde764a8a467f04b773bd237d14877a31fba808cfa18feca75aaa395f256479e6d023e5",
+			"random_calls": [
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 326996
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 731039
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 850330
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 214888
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 348644
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 246306
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 973642
+				},
+				{
+					"fn": "randomInt",
+					"args": [
+						990,
+						999990
+					],
+					"result": 338998
+				},
+				{
+					"fn": "randomUUID",
+					"result": "cfa18fec-a75a-4a39-9f25-6479e6d023e5"
+				}
+			]
+		}
+	]
+}

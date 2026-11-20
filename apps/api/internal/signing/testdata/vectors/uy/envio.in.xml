@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DGICFE:EnvioCFE version="1.0" xmlns:DGICFE="http://cfe.dgi.gub.uy" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <DGICFE:Caratula version="1.0">
+    <DGICFE:RutReceptor>210987654321</DGICFE:RutReceptor>
+    <DGICFE:RUCEmisor>211234567890</DGICFE:RUCEmisor>
+    <DGICFE:CantCFE>2</DGICFE:CantCFE>
+  </DGICFE:Caratula>
+  <CFE_Adenda>
+    <CFE xmlns="http://cfe.dgi.gub.uy" version="1.0">
+      <eFact>
+        <Encabezado>
+    <IdDoc>
+      <TipoCFE>111</TipoCFE>
+      <Serie>A</Serie>
+      <Nro>10</Nro>
+      <FchEmis>2026-09-02</FchEmis>
+    </IdDoc>
+    <Emisor>
+      <RUCEmisor>211234567890</RUCEmisor>
+      <RznSoc>Empresa Test SA</RznSoc>
+    </Emisor>
+    <Totales>
+      <TpoMoneda>UYU</TpoMoneda>
+      <MntTotal>1180</MntTotal>
+    </Totales>
+  </Encabezado>
+      </eFact>
+    </CFE>
+    <Adenda>Primera adenda: entrega en deposito central.</Adenda>
+  </CFE_Adenda>
+  <CFE_Adenda>
+    <CFE xmlns="http://cfe.dgi.gub.uy" version="1.0">
+      <eFact>
+        <Encabezado>
+    <IdDoc>
+      <TipoCFE>111</TipoCFE>
+      <Serie>A</Serie>
+      <Nro>11</Nro>
+      <FchEmis>2026-09-02</FchEmis>
+    </IdDoc>
+    <Emisor>
+      <RUCEmisor>211234567890</RUCEmisor>
+      <RznSoc>Empresa Test SA</RznSoc>
+    </Emisor>
+    <Totales>
+      <TpoMoneda>UYU</TpoMoneda>
+      <MntTotal>1180</MntTotal>
+    </Totales>
+  </Encabezado>
+      </eFact>
+    </CFE>
+  </CFE_Adenda>
+</DGICFE:EnvioCFE>

@@ -1,0 +1,17 @@
+# `bun run preview:cloudflare` (wrangler dev, in workerd, on 127.0.0.1:4442)
+# reads this file copied to .dev.vars, over wrangler.jsonc's vars. Against
+# compose.yml's Postgres and the API of `bun run dev`, whose PANEL_URL has
+# to be this BETTER_AUTH_URL while you try it.
+DATABASE_URL=postgres://sign:sign@127.0.0.1:5434/sign
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=http://127.0.0.1:4442
+API_URL=http://127.0.0.1:4441
+CLOUD=false
+OIDC_ONLY=false
+OIDC_ISSUER=
+# Sello's site (CORS of /sales-inquiry) and the sales e-mail. Without
+# RESEND_API_KEY the inquiry is written to the console.
+PUBLIC_SITE_URL=http://sello.test
+RESEND_API_KEY=
+SALES_EMAIL=sales@sign.sello.tax
+EMAIL_FROM=Sello Sign <noreply@sign.sello.tax>

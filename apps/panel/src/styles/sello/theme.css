@@ -1,0 +1,145 @@
+/*
+ * Sello UI · @sello/theme · https://sello.tax/r/registry.json
+ * Copyright (c) 2026 Proxima AI LLC. MIT License: https://sello.tax/r/LICENSE.txt
+ * Derived from shadcn/ui (https://ui.shadcn.com), Copyright (c) 2023
+ * shadcn, MIT License.
+ *
+ * Generated from Sello's design system. Don't edit it here: update it with
+ * `bunx shadcn@latest add @sello/theme --overwrite`.
+ */
+
+/* El tema: conecta los tokens con Tailwind v4 y pone las reglas base
+   (el foco, la selección, el movimiento reducido). Se importa una vez,
+   después de Tailwind, en la hoja principal del proyecto:
+
+     @import 'tailwindcss';
+     @import './styles/sello/theme.css'; */
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+@import './tokens.css';
+@import './pieces.css';
+
+/* El modo oscuro es la clase `dark` en `<html>`, que pone un script en el
+   `<head>` de cada app antes del primer pintado (ver «Modo oscuro» en
+   `DESIGN.md`). */
+@custom-variant dark (&:is(.dark *));
+
+/* `inline`: los colores cambian con el modo, así que cada utilidad lee la
+   variable en el elemento donde se aplica y no un valor fijado en `:root`. */
+@theme inline {
+	--font-sans:
+		'Geist Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+	--font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+	--font-heading: var(--font-sans);
+
+	/* Superficies */
+	--color-background: var(--bg);
+	--color-subtle: var(--bg-subtle);
+	--color-surface: var(--surface);
+	--color-fill: var(--fill);
+	--color-fill-hover: var(--fill-hover);
+	--color-fill-active: var(--fill-active);
+	--color-raised: var(--raised);
+	--color-raised-hover: var(--raised-hover);
+	--color-selected: var(--selected);
+	--color-glass: var(--glass);
+	--color-glass-page: var(--glass-page);
+	--color-scrim: var(--scrim);
+
+	/* Líneas */
+	--color-line: var(--line);
+	--color-line-strong: var(--line-strong);
+
+	/* Texto */
+	--color-foreground: var(--text);
+	--color-muted-foreground: var(--text-2);
+	--color-faint: var(--text-3);
+
+	/* Tinta y foco */
+	--color-primary: var(--solid);
+	--color-primary-hover: var(--solid-hover);
+	--color-primary-foreground: var(--on-solid);
+	--color-ring: var(--focus);
+
+	/* Veredictos */
+	--color-ok: var(--ok);
+	--color-ok-fill: var(--ok-fill);
+	--color-ok-fill-hover: var(--ok-fill-hover);
+	--color-warn: var(--warn);
+	--color-warn-fill: var(--warn-fill);
+	--color-warn-fill-hover: var(--warn-fill-hover);
+	--color-bad: var(--bad);
+	--color-bad-fill: var(--bad-fill);
+	--color-bad-fill-hover: var(--bad-fill-hover);
+	--color-mark: var(--mark);
+
+	/* Elevación: lo que se apoya (la caja, las tarjetas) y lo que flota
+	   (menús, diálogos, avisos). */
+	--shadow-raised: var(--elevation-raised);
+	--shadow-float: var(--elevation-float);
+
+	/* Alias de shadcn, para las piezas de `components/`. En las apps no se
+	   usan: `lint:design` los rechaza. */
+	--color-card: var(--surface);
+	--color-card-foreground: var(--text);
+	--color-popover: var(--surface);
+	--color-popover-foreground: var(--text);
+	--color-secondary: var(--fill);
+	--color-secondary-foreground: var(--text);
+	--color-muted: var(--fill);
+	--color-accent: var(--fill-hover);
+	--color-accent-foreground: var(--text);
+	--color-destructive: var(--bad);
+	--color-border: var(--line);
+	--color-input: var(--line-strong);
+	--color-sidebar: var(--bg-subtle);
+	--color-sidebar-foreground: var(--text);
+	--color-sidebar-primary: var(--solid);
+	--color-sidebar-primary-foreground: var(--on-solid);
+	--color-sidebar-accent: var(--fill-hover);
+	--color-sidebar-accent-foreground: var(--text);
+	--color-sidebar-border: var(--line);
+	--color-sidebar-ring: var(--focus);
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
+}
+
+@layer base {
+	* {
+		@apply border-line;
+	}
+	/* Sin esto la columna centrada salta 15-17 px en Windows entre el landing
+     (con barra de scroll) y el chat (sin ella): el corte de la transición se
+     nota justo en el momento en que no debe notarse. */
+	html {
+		scrollbar-gutter: stable;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+	/* El foco, uno solo para todo: 2 px de `--focus` separados 2 px, que pasa
+	   3:1 sobre cualquier fondo (WCAG 2.4.13). Las piezas no dibujan el suyo;
+	   las que tienen un borde propio —la caja— lo reemplazan en su regla. */
+	:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
+	}
+	::selection {
+		background: var(--selected);
+		color: var(--text);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.01ms !important;
+		}
+	}
+}

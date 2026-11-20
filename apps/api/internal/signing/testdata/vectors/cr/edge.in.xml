@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FacturaElectronica xmlns="https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.4/facturaElectronica" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Clave>50601042000310123456700100001010000000011199999999</Clave>
+  <CodigoActividad>620100</CodigoActividad>
+  <NumeroConsecutivo>00100001010000000011</NumeroConsecutivo>
+  <FechaEmision>2025-01-15T10:30:00-06:00</FechaEmision>
+  <Emisor>
+    <Nombre>Empresa Test SA</Nombre>
+    <Identificacion>
+      <Tipo>01</Tipo>
+      <Numero>3101234567</Numero>
+    </Identificacion>
+  </Emisor>
+  <Receptor>
+    <Nombre>Cliente Test</Nombre>
+    <Identificacion>
+      <Tipo>01</Tipo>
+      <Numero>3107654321</Numero>
+    </Identificacion>
+  </Receptor>
+  <ResumenFactura>
+    <TotalComprobante>11800.00</TotalComprobante>
+  </ResumenFactura>
+<Edge a="x&amp;y" b="l1&#10;l2" c="t&#9;t" d='sq "dq" &lt;' e="lit	tab
+line" f="&gt;">texto &amp; &lt;b&gt; "q" 'a' ñ € 😀 &#x41;&#66;<![CDATA[<raw> & ]]><!-- comentario --><Vacio></Vacio><Otro/><p:Extra xmlns:p="urn:extra" p:z="1" z="2" a="3"><p:Inner>x</p:Inner></p:Extra></Edge></FacturaElectronica>

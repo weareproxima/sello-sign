@@ -1,0 +1,44 @@
+{
+	"country": "BO",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "factura",
+			"content_type": "application/xml",
+			"input": "factura.in.xml",
+			"output": "factura.out.xml",
+			"document_id": "8727F63A15F8976591FDDE5B387C5D015A29E06A1A19E23EF34124CD",
+			"document_type": "1",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "edge",
+			"note": "the comment is part of the digest (C14N WithComments)",
+			"content_type": "application/xml",
+			"input": "edge.in.xml",
+			"output": "edge.out.xml",
+			"document_id": "8727F63A15F8976591FDDE5B387C5D015A29E06A1A19E23EF34124CD",
+			"document_type": "1",
+			"self_verified": false,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "root-xsi",
+			"note": "known TS bug: SignedInfo is canonicalized without the xmlns:xsi it inherits",
+			"content_type": "application/xml",
+			"input": "root-xsi.in.xml",
+			"output": "root-xsi.out.xml",
+			"document_id": "8727F63A15F8976591FDDE5B387C5D015A29E06A1A19E23EF34124CD",
+			"document_type": "1",
+			"self_verified": false,
+			"random": "",
+			"random_calls": []
+		}
+	]
+}

@@ -1,0 +1,13 @@
+node_modules
+.turbo
+.output
+.nitro
+.tanstack
+dist
+apps/api/bin
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+tools/vectors/node_modules

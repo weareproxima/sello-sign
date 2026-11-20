@@ -1,0 +1,132 @@
+{
+	"country": "CO",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "invoice",
+			"content_type": "application/xml",
+			"input": "invoice.in.xml",
+			"output": "invoice.out.xml",
+			"document_id": "8bb0bb0cd1e0f2c3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "23555aef1bda49f7898921cd0788ff60e9fbbf843e56242d66faaa303ff0f3af",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "23555aef-1bda-49f7-8989-21cd0788ff60"
+				},
+				{
+					"fn": "randomUUID",
+					"result": "e9fbbf84-3e56-442d-a6fa-aa303ff0f3af"
+				}
+			]
+		},
+		{
+			"name": "credit-note",
+			"content_type": "application/xml",
+			"input": "credit-note.in.xml",
+			"output": "credit-note.out.xml",
+			"document_id": "1c2d3e4f50617283a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b",
+			"document_type": "20",
+			"self_verified": true,
+			"random": "8f815d4365dbc6ea4caffbcac00deda31e596b6e546cac41e0c992843a874990",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "8f815d43-65db-46ea-8caf-fbcac00deda3"
+				},
+				{
+					"fn": "randomUUID",
+					"result": "1e596b6e-546c-4c41-a0c9-92843a874990"
+				}
+			]
+		},
+		{
+			"name": "edge",
+			"content_type": "application/xml",
+			"input": "edge.in.xml",
+			"output": "edge.out.xml",
+			"document_id": "8bb0bb0cd1e0f2c3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "70ce863d128875f4f9a68bf3716f9a39f49b7d7d57b307a7c89df5c3f3cfb081",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "70ce863d-1288-45f4-b9a6-8bf3716f9a39"
+				},
+				{
+					"fn": "randomUUID",
+					"result": "f49b7d7d-57b3-47a7-889d-f5c3f3cfb081"
+				}
+			]
+		},
+		{
+			"name": "one-extension",
+			"note": "only the DianExtensions: the signer appends the second UBLExtension",
+			"content_type": "application/xml",
+			"input": "one-extension.in.xml",
+			"output": "one-extension.out.xml",
+			"document_id": "8bb0bb0cd1e0f2c3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "b55c5d73182b4691fdb2d675685528bd8ced4e4c292c0e6e4f56f3082c9dbe3e",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "b55c5d73-182b-4691-bdb2-d675685528bd"
+				},
+				{
+					"fn": "randomUUID",
+					"result": "8ced4e4c-292c-4e6e-8f56-f3082c9dbe3e"
+				}
+			]
+		},
+		{
+			"name": "no-extensions",
+			"note": "no ext:UBLExtensions at all: the signer creates it",
+			"content_type": "application/xml",
+			"input": "no-extensions.in.xml",
+			"output": "no-extensions.out.xml",
+			"document_id": "8bb0bb0cd1e0f2c3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "3473be4165ba335980f10452bb3e4504eb9aedee29ee35d95ef196f0d8e9a04e",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "3473be41-65ba-4359-80f1-0452bb3e4504"
+				},
+				{
+					"fn": "randomUUID",
+					"result": "eb9aedee-29ee-45d9-9ef1-96f0d8e9a04e"
+				}
+			]
+		},
+		{
+			"name": "no-ext-ns",
+			"note": "no xmlns:ext in scope: the serializer declares it on the new ext:UBLExtensions",
+			"content_type": "application/xml",
+			"input": "no-ext-ns.in.xml",
+			"output": "no-ext-ns.out.xml",
+			"document_id": "8bb0bb0cd1e0f2c3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "4c47603a87dc699c323b2db8d58d237cd44668e892bf3df6d59cac1097d30f2f",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "4c47603a-87dc-499c-b23b-2db8d58d237c"
+				},
+				{
+					"fn": "randomUUID",
+					"result": "d44668e8-92bf-4df6-959c-ac1097d30f2f"
+				}
+			]
+		}
+	]
+}

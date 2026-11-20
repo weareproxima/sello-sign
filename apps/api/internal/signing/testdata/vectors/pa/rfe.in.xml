@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rFE xmlns="http://dgi-fep.mef.gob.pa">
+  <dVerForm>1.00</dVerForm>
+  <dId>FE0120000155600000-2-2015-8600012025011500000000010010121234567897</dId>
+  <gDGen>
+    <iAmb>2</iAmb>
+    <iTpEmis>01</iTpEmis>
+    <iDoc>01</iDoc>
+    <dNroDF>0000000001</dNroDF>
+    <dPtoFacDF>001</dPtoFacDF>
+    <dSeg>123456789</dSeg>
+    <dFechaEm>2025-01-15T10:30:00-05:00</dFechaEm>
+    <iNatOp>01</iNatOp>
+    <iTipoOp>1</iTipoOp>
+    <iDest>1</iDest>
+    <iFormCAFE>1</iFormCAFE>
+    <iEntCAFE>1</iEntCAFE>
+    <dEnvFE>1</dEnvFE>
+    <iProGen>1</iProGen>
+    <gEmis>
+      <gRucEmi>
+        <dTipoRuc>2</dTipoRuc>
+        <dRuc>155600000-2-2015</dRuc>
+        <dDV>86</dDV>
+      </gRucEmi>
+      <dNombEm>EMPRESA DE PRUEBA, S.A.</dNombEm>
+      <dSucEm>0001</dSucEm>
+      <dDirecEm>Calle 50, Ciudad de Panama</dDirecEm>
+    </gEmis>
+    <gDatRec>
+      <iTipoRec>02</iTipoRec>
+      <dNombRec>CLIENTE DE PRUEBA</dNombRec>
+      <dDirecRec>Via Espana, Ciudad de Panama</dDirecRec>
+    </gDatRec>
+  </gDGen>
+  <gItem>
+    <dSecItem>1</dSecItem>
+    <dDescProd>Servicio de facturacion electronica</dDescProd>
+    <dCantCodInt>1.00</dCantCodInt>
+    <dPrUnit>100.00</dPrUnit>
+    <dPrItem>100.00</dPrItem>
+    <dValTotItem>107.00</dValTotItem>
+    <gITBMSItem>
+      <dTasaITBMS>01</dTasaITBMS>
+      <dValITBMS>7.00</dValITBMS>
+    </gITBMSItem>
+  </gItem>
+  <gTot>
+    <dTotNeto>100.00</dTotNeto>
+    <dTotITBMS>7.00</dTotITBMS>
+    <dTotGravado>107.00</dTotGravado>
+    <dTotDesc>0.00</dTotDesc>
+    <dVTot>107.00</dVTot>
+    <dTotRec>107.00</dTotRec>
+    <iPzPag>1</iPzPag>
+    <dNroItems>1</dNroItems>
+    <dVTotItems>107.00</dVTotItems>
+    <gFormaPago>
+      <iFormaPago>02</iFormaPago>
+      <dVlrCuota>107.00</dVlrCuota>
+    </gFormaPago>
+  </gTot>
+</rFE>

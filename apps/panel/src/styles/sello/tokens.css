@@ -1,0 +1,287 @@
+/*
+ * Sello UI · @sello/theme · https://sello.tax/r/registry.json
+ * Copyright (c) 2026 Proxima AI LLC. MIT License: https://sello.tax/r/LICENSE.txt
+ *
+ * Generated from Sello's design system. Don't edit it here: update it with
+ * `bunx shadcn@latest add @sello/theme --overwrite`.
+ */
+
+/* Los tokens del sistema de diseño de Sello: Capas con la paleta Piedra.
+
+   Cada decisión de diseño es una variable CSS, y solo una. Los componentes no
+   escriben colores, tamaños, radios ni sombras: usan las utilidades que el
+   tema genera a partir de estas variables (`bg-fill`, `text-ui`,
+   `rounded-card`, `shadow-raised`…). Las reglas y cuándo usar cada una están
+   en `DESIGN.md`, en la raíz del repositorio; la referencia visual, en
+   `docs/design/layers.html`.
+
+   Los nombres son los de la propuesta aprobada (`--bg`, `--fill`, `--text-2`…)
+   para que el documento y el código digan lo mismo. Los contrastes están
+   medidos: todo texto pasa 4,5:1 sobre los fondos donde aparece, el foco pasa
+   3:1 y todos los colores caben en sRGB. `bun run lint:design` lo vuelve a
+   medir sobre este archivo (`scripts/contrast.ts`, ver «Contraste» en
+   `DESIGN.md`). */
+
+/* ─── Color: día ──────────────────────────────────────────────────────── */
+:root {
+	color-scheme: light;
+
+	/* Superficies, de abajo arriba: lienzo, banda, superficie y relleno. */
+	--bg: oklch(1 0 0);
+	--bg-subtle: oklch(0.985 0.001 106.4);
+	--surface: oklch(1 0 0);
+	--fill: oklch(0.97 0.001 106.4);
+	--fill-hover: oklch(0.948 0.002 70);
+	--fill-active: oklch(0.923 0.003 48.7);
+
+	/* El relieve: lo que se apoya sobre un relleno (el botón `outline`, el
+	   segmento pulsado del selector de tema). Tiene que quedar por encima del
+	   relleno en los dos modos: de día es la superficie, blanca, y de noche
+	   no puede serlo, porque allí la superficie queda por debajo del relleno. */
+	--raised: var(--surface);
+	--raised-hover: var(--fill-hover);
+
+	/* Líneas: solo tablas y separadores de menú (Capas no dibuja cromo). */
+	--line: oklch(0.923 0.003 48.7);
+	--line-strong: oklch(0.869 0.005 56.4);
+
+	/* Texto. `--text-2` pasa 4,5:1 también sobre `--fill-hover` y
+	   `--fill-active`; `--text-3` solo para lo deshabilitado, marcadores de
+	   lista y la segunda línea de un titular grande. */
+	--text: oklch(0.147 0.004 49.25);
+	--text-2: oklch(0.51 0.013 58);
+	--text-3: oklch(0.62 0.011 58);
+
+	/* Tinta: el botón primario, el tooltip y los avisos. */
+	--solid: oklch(0.216 0.006 56);
+	--solid-hover: oklch(0.3 0.008 50);
+	--on-solid: oklch(0.985 0.001 106.4);
+
+	/* Lo seleccionado —la conversación abierta, el texto marcado—. En Piedra
+	   es el relleno pulsado; Tinta lo cambiaría por su azul sin tocar nada más. */
+	--selected: var(--fill-active);
+	--focus: oklch(0.553 0.013 58);
+
+	/* Veredictos: el único color de la interfaz, y nunca decorativo. Tan
+	   oscuros como para pasar 4,5:1 también sobre su relleno de hover. */
+	--ok: oklch(0.48 0.1 163);
+	--warn: oklch(0.5 0.105 70);
+	--bad: oklch(0.52 0.2 27);
+
+	/* El velo bajo diálogos y paneles, y el vidrio de lo que flota sobre el
+	   hilo (la caja, «Ir al final»): casi opaco, para que el texto que pasa
+	   debajo se adivine sin competir con lo que se escribe encima. */
+	--scrim: oklch(0.147 0.004 49.25 / 0.3);
+	--glass: color-mix(in oklab, var(--surface) 92%, transparent);
+	/* El de la cabecera del landing, que tiene que acabar siendo el lienzo
+	   sólido de la del chat al final de la transición. */
+	--glass-page: color-mix(in oklab, var(--bg) 92%, transparent);
+
+	/* Elevación. De día, sombra y un filo apenas visible. */
+	--edge: oklch(0.147 0.004 49.25 / 0.06);
+	--elevation-raised:
+		0 0 0 1px var(--edge), 0 1px 2px oklch(0.2 0.01 56 / 0.05),
+		0 8px 24px -8px oklch(0.2 0.01 56 / 0.12);
+	--elevation-float:
+		0 0 0 1px var(--edge), 0 2px 6px oklch(0.2 0.01 56 / 0.06),
+		0 20px 48px -16px oklch(0.2 0.01 56 / 0.22);
+}
+
+/* ─── Color: noche ────────────────────────────────────────────────────── */
+/* No se invierte: se recalcula. Lo que sube se aclara (lienzo 0,165 → banda
+   0,19 → superficie 0,215 → relleno 0,25), el texto no llega al blanco y los
+   veredictos se aclaran para mantener el contraste. */
+.dark {
+	color-scheme: dark;
+
+	--bg: oklch(0.165 0.004 56);
+	--bg-subtle: oklch(0.19 0.005 56);
+	--surface: oklch(0.215 0.006 56);
+	--fill: oklch(0.25 0.006 56);
+	--fill-hover: oklch(0.285 0.007 56);
+	--fill-active: oklch(0.32 0.008 56);
+
+	/* Un escalón por encima del relleno, el del pulsado, y su hover otro más,
+	   siguiendo la misma escalera (+0,035). */
+	--raised: var(--fill-active);
+	--raised-hover: oklch(0.355 0.009 56);
+
+	--line: oklch(0.29 0.006 56);
+	--line-strong: oklch(0.37 0.008 56);
+
+	--text: oklch(0.965 0.002 90);
+	--text-2: oklch(0.76 0.009 60);
+	--text-3: oklch(0.6 0.01 58);
+
+	--solid: oklch(0.94 0.003 60);
+	--solid-hover: oklch(0.86 0.004 60);
+	--on-solid: oklch(0.19 0.005 56);
+
+	--selected: var(--fill-active);
+	--focus: oklch(0.72 0.01 60);
+
+	--ok: oklch(0.76 0.13 163);
+	--warn: oklch(0.82 0.13 82);
+	--bad: oklch(0.72 0.16 25);
+
+	--scrim: oklch(0 0 0 / 0.5);
+	--glass: color-mix(in oklab, var(--surface) 92%, transparent);
+	--glass-page: color-mix(in oklab, var(--bg) 92%, transparent);
+
+	/* De noche la sombra no se ve: separa el tono y un filo de luz de 1 px. */
+	--edge: oklch(1 0 0 / 0.06);
+	--elevation-raised:
+		inset 0 0 0 1px var(--edge), 0 1px 2px oklch(0 0 0 / 0.3),
+		0 8px 24px -8px oklch(0 0 0 / 0.45);
+	--elevation-float:
+		inset 0 0 0 1px oklch(1 0 0 / 0.08), 0 2px 6px oklch(0 0 0 / 0.3),
+		0 20px 48px -16px oklch(0 0 0 / 0.6);
+}
+
+/* ─── Derivados ───────────────────────────────────────────────────────── */
+/* En la misma regla que `.dark` para que un elemento oscuro los recalcule con
+   sus propios colores y no herede los del claro. */
+:root,
+.dark {
+	--ok-fill: color-mix(in oklab, var(--ok) 12%, var(--bg));
+	--warn-fill: color-mix(in oklab, var(--warn) 12%, var(--bg));
+	--bad-fill: color-mix(in oklab, var(--bad) 12%, var(--bg));
+	/* Su hover: un punto más de color, para las citas y los botones sobre ellos. */
+	--ok-fill-hover: color-mix(in oklab, var(--ok) 20%, var(--bg));
+	--warn-fill-hover: color-mix(in oklab, var(--warn) 20%, var(--bg));
+	--bad-fill-hover: color-mix(in oklab, var(--bad) 20%, var(--bg));
+	/* El tramo del fragmento que respalda la cita, en el lector. */
+	--mark: color-mix(in oklab, var(--ok) 20%, var(--bg));
+
+	/* Alias de shadcn. Solo existen para que las piezas de `components/` sigan
+	   funcionando; el código de las apps usa los nombres de arriba. */
+	--background: var(--bg);
+	--foreground: var(--text);
+	--card: var(--surface);
+	--card-foreground: var(--text);
+	--popover: var(--surface);
+	--popover-foreground: var(--text);
+	--primary: var(--solid);
+	--primary-foreground: var(--on-solid);
+	--secondary: var(--fill);
+	--secondary-foreground: var(--text);
+	--muted: var(--fill);
+	--muted-foreground: var(--text-2);
+	--accent: var(--fill-hover);
+	--accent-foreground: var(--text);
+	--destructive: var(--bad);
+	--border: var(--line);
+	--input: var(--line-strong);
+	--ring: var(--focus);
+	--sidebar: var(--bg-subtle);
+	--sidebar-foreground: var(--text);
+	--sidebar-primary: var(--solid);
+	--sidebar-primary-foreground: var(--on-solid);
+	--sidebar-accent: var(--fill-hover);
+	--sidebar-accent-foreground: var(--text);
+	--sidebar-border: var(--line);
+	--sidebar-ring: var(--focus);
+	--chart-1: var(--ok);
+	--chart-2: var(--warn);
+	--chart-3: var(--bad);
+	--chart-4: var(--text-2);
+	--chart-5: var(--text-3);
+}
+.dark {
+	--ok-fill: color-mix(in oklab, var(--ok) 14%, var(--bg));
+	--warn-fill: color-mix(in oklab, var(--warn) 14%, var(--bg));
+	--bad-fill: color-mix(in oklab, var(--bad) 14%, var(--bg));
+	--ok-fill-hover: color-mix(in oklab, var(--ok) 24%, var(--bg));
+	--warn-fill-hover: color-mix(in oklab, var(--warn) 24%, var(--bg));
+	--bad-fill-hover: color-mix(in oklab, var(--bad) 24%, var(--bg));
+	--mark: color-mix(in oklab, var(--ok) 30%, var(--bg));
+}
+
+/* ─── Escalas ─────────────────────────────────────────────────────────── */
+/* `static`: todas se emiten como variables en `:root` aunque ninguna
+   utilidad las use, para que el CSS propio (`styles.css`, `global.css`)
+   pueda leerlas con `var()`. */
+@theme static {
+	/* Tipografía: once papeles, cada uno con su interlínea en múltiplos de 4.
+	   Los titulares llevan además su peso y su espaciado. */
+	--text-label: 0.6875rem;
+	--text-label--line-height: 1rem;
+	--text-meta: 0.75rem;
+	--text-meta--line-height: 1rem;
+	--text-ui: 0.875rem;
+	--text-ui--line-height: 1.25rem;
+	--text-field: 1rem;
+	--text-field--line-height: 1.5rem;
+	--text-body: 1rem;
+	--text-body--line-height: 1.75rem;
+	--text-lede: 1.125rem;
+	--text-lede--line-height: 1.75rem;
+	--text-h3: 1.125rem;
+	--text-h3--line-height: 1.5rem;
+	--text-h3--letter-spacing: -0.01em;
+	--text-h3--font-weight: 600;
+	--text-h2: 1.25rem;
+	--text-h2--line-height: 1.75rem;
+	--text-h2--letter-spacing: -0.015em;
+	--text-h2--font-weight: 600;
+	--text-h1: 1.5rem;
+	--text-h1--line-height: 2rem;
+	--text-h1--letter-spacing: -0.02em;
+	--text-h1--font-weight: 600;
+	/* Los dos titulares grandes escalan con la pantalla entre su mínimo y su
+	   máximo: un solo papel sirve para el móvil y para el escritorio. */
+	--text-d2: clamp(2rem, 1.5rem + 1.5vw, 2.5rem);
+	--text-d2--line-height: 1.1;
+	--text-d2--letter-spacing: -0.03em;
+	--text-d2--font-weight: 600;
+	--text-d1: clamp(2.75rem, 1.75rem + 3.5vw, 4rem);
+	--text-d1--line-height: 1;
+	--text-d1--letter-spacing: -0.04em;
+	--text-d1--font-weight: 600;
+	/* Las versalitas de los rótulos de datos (`font-mono uppercase`). */
+	--tracking-label: 0.12em;
+
+	/* Radios concéntricos: el de dentro es el de fuera menos el relleno (un
+	   panel de 16 con 4 de relleno lleva filas de 12). Las acciones son
+	   píldoras: `rounded-full`. */
+	--radius-small: 0.375rem;
+	--radius-row: 0.75rem;
+	--radius-panel: 1rem;
+	--radius-card: 1.5rem;
+
+	/* Dentro de la línea: lo que vive en un texto se mide con su letra (`em`)
+	   y sigue al que lo rodea —la respuesta, una celda, un titular—. El código
+	   en línea, un punto más pequeño que su texto, y el cursor de escritura,
+	   con las esquinas apenas suavizadas: `small` lo volvería una píldora. */
+	--inline-code-size: 0.875em;
+	--inline-code-padding-y: 0.1em;
+	--inline-code-padding-x: 0.35em;
+	--caret-width: 0.45em;
+	--caret-offset: 0.15em;
+	--caret-radius: 1px;
+
+	/* Alturas: tres de control y la de una fila de lista. En táctil los
+	   controles suben a `control-lg`. */
+	--spacing-control-sm: 2rem;
+	--spacing-control-md: 2.5rem;
+	--spacing-control-lg: 3rem;
+	--spacing-row: 2.25rem;
+
+	/* Movimiento: tres curvas y cuatro duraciones. Entrar y moverse con
+	   `ease-out`, salir con `ease-in`, confirmar con `ease-pop`. */
+	--ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+	--ease-in: cubic-bezier(0.4, 0, 1, 1);
+	--ease-pop: cubic-bezier(0.2, 0.7, 0.2, 1.3);
+	--transition-duration-fast: 120ms;
+	--transition-duration-base: 200ms;
+	--transition-duration-slow: 320ms;
+	--transition-duration-travel: 560ms;
+	/* Lo que entra o sale difuminado: una frase que deja su sitio a otra. */
+	--blur-fade: 4px;
+	/* Lo que pasa por debajo de lo que flota sobre el hilo, tras su vidrio
+	   (`--glass`): se adivina sin competir con lo que se escribe encima. */
+	--blur-glass: 8px;
+	/* Lo que usa `transition-colors` y compañía sin duración explícita. */
+	--default-transition-duration: 120ms;
+	--default-transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+}

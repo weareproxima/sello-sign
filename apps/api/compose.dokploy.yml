@@ -1,0 +1,104 @@
+# Sello Sign's API on the server, with Dokploy (docs/deploy.md): the API
+# (apps/api/Containerfile) and the Valkey of its keys' cache. The database is
+# Neon's; the panel is a Cloudflare Worker (apps/panel/wrangler.jsonc).
+#
+# In Dokploy: a Compose service from this repository, path
+# `apps/api/compose.dokploy.yml`. Its variables go in the service's
+# Environment tab, and Dokploy writes them to a `.env` next to this file:
+# DATABASE_URL, SIGN_SECRETS_KEY, PANEL_URL, SIGN_PLATFORM_WORKSPACE_ID,
+# BILLING_TOKEN and BILLING_PUSH_TOKEN (and, if not the defaults, API_URL,
+# BILLING_URL, SIGN_COUNTRIES and LOG_LEVEL; SIGN_SECRETS_KEY_PREVIOUS while
+# the key rotates). A required one that's missing stops the deploy before it
+# touches a container: what ran keeps running.
+#
+# Its domain, api.sign.sello.tax, is published by the Traefik labels below
+# (Dokploy's own Traefik, with Let's Encrypt): don't add it again in the
+# Domains tab, or two routers would compete for it. The DNS record
+# api.sign.sello.tax → this server goes first, without Cloudflare's proxy
+# while Let's Encrypt issues the certificate (HTTP challenge).
+
+services:
+  # Not `valkey`: the API is also on dokploy-network, shared by every project
+  # on the server, and a name there resolves to whichever service has it. A
+  # name no other project will use.
+  sello-sign-valkey:
+    # Only the API reaches it, through this compose's network: no port, no
+    # password. Nothing in it has to survive a restart (a miss reads the
+    # database), so it keeps nothing on disk.
+    image: docker.io/valkey/valkey:9.0.1-alpine
+    command: valkey-server --save "" --appendonly no --maxmemory 64mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: [CMD, valkey-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - default
+    restart: unless-stopped
+
+  sello-sign-api:
+    build:
+      context: .
+      dockerfile: Containerfile
+    environment:
+      # Neon's direct string (not the -pooler one): the API keeps its own
+      # pool and holds session advisory locks (its migrations, the hourly
+      # usage report), which PgBouncer's transaction mode doesn't keep.
+      DATABASE_URL: ${DATABASE_URL:?falta DATABASE_URL en el Environment de Dokploy}
+      # 32 bytes in base64 (openssl rand -base64 32): the certificates' key.
+      # Losing it loses every certificate.
+      SIGN_SECRETS_KEY: ${SIGN_SECRETS_KEY:?falta SIGN_SECRETS_KEY en el Environment de Dokploy}
+      SIGN_SECRETS_KEY_PREVIOUS: ${SIGN_SECRETS_KEY_PREVIOUS:-}
+      # The panel's origin (its BETTER_AUTH_URL, byte for byte): the tokens'
+      # `iss` and where their JWKS is fetched.
+      PANEL_URL: ${PANEL_URL:?falta PANEL_URL en el Environment de Dokploy}
+      # This API's origin (the panel's API_URL, byte for byte): the tokens'
+      # `aud`.
+      API_URL: ${API_URL:-https://api.sign.sello.tax}
+      REDIS_URL: redis://sello-sign-valkey:6379/0
+      SIGN_COUNTRIES: ${SIGN_COUNTRIES:-SV,DO,CR,PA,GT}
+      CLOUD: 'true'
+      # The space of Sello's platform (docs/deploy.md, «El espacio de la
+      # plataforma»). The first deploy can go without it only if CLOUD is
+      # false; in the cloud the API refuses to start.
+      SIGN_PLATFORM_WORKSPACE_ID: ${SIGN_PLATFORM_WORKSPACE_ID:?falta SIGN_PLATFORM_WORKSPACE_ID en el Environment de Dokploy}
+      # Sello's billing: BILLING_TOKEN is billing's BILLING_SIGN_TOKEN (Sign →
+      # billing) and BILLING_PUSH_TOKEN its SIGN_PUSH_TOKEN (billing → Sign).
+      BILLING_URL: ${BILLING_URL:-https://billing.sello.tax}
+      BILLING_TOKEN: ${BILLING_TOKEN:?falta BILLING_TOKEN en el Environment de Dokploy}
+      BILLING_PUSH_TOKEN: ${BILLING_PUSH_TOKEN:?falta BILLING_PUSH_TOKEN en el Environment de Dokploy}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    # No `ports`: Traefik reaches it through dokploy-network on 8080.
+    networks:
+      - default
+      - dokploy-network
+    depends_on:
+      sello-sign-valkey:
+        condition: service_healthy
+    # The image's own (`/api health`), repeated so it's there whatever the
+    # build format.
+    healthcheck:
+      test: [CMD, /api, health]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    # On SIGTERM the server waits up to 20 s for the requests in flight.
+    stop_grace_period: 30s
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.sello-sign-api-web.rule=Host(`api.sign.sello.tax`)
+      - traefik.http.routers.sello-sign-api-web.entrypoints=web
+      - traefik.http.routers.sello-sign-api-web.middlewares=redirect-to-https@file
+      - traefik.http.routers.sello-sign-api-web.service=sello-sign-api
+      - traefik.http.routers.sello-sign-api-websecure.rule=Host(`api.sign.sello.tax`)
+      - traefik.http.routers.sello-sign-api-websecure.entrypoints=websecure
+      - traefik.http.routers.sello-sign-api-websecure.tls.certresolver=letsencrypt
+      - traefik.http.routers.sello-sign-api-websecure.service=sello-sign-api
+      - traefik.http.services.sello-sign-api.loadbalancer.server.port=8080
+
+networks:
+  dokploy-network:
+    external: true

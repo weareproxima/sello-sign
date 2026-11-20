@@ -1,0 +1,65 @@
+{
+	"country": "PA",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "rfe",
+			"content_type": "application/xml",
+			"input": "rfe.in.xml",
+			"output": "rfe.out.xml",
+			"document_id": "FE0120000155600000-2-2015-8600012025011500000000010010121234567897",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "rfe-no-firm",
+			"note": "gNoFirm present: kept last and out of the digest",
+			"content_type": "application/xml",
+			"input": "rfe-no-firm.in.xml",
+			"output": "rfe-no-firm.out.xml",
+			"document_id": "FE0120000155600000-2-2015-8600012025011500000000010010121234567897",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "rfe-compact",
+			"content_type": "application/xml",
+			"input": "rfe-compact.in.xml",
+			"output": "rfe-compact.out.xml",
+			"document_id": "FE0120000155600000-2-2015-8600012025011500000000010010121234567897",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "edge",
+			"content_type": "application/xml",
+			"input": "edge.in.xml",
+			"output": "edge.out.xml",
+			"document_id": "FE0120000155600000-2-2015-8600012025011500000000010010121234567897",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "root-xsi",
+			"content_type": "application/xml",
+			"input": "root-xsi.in.xml",
+			"output": "root-xsi.out.xml",
+			"document_id": "FE0120000155600000-2-2015-8600012025011500000000010010121234567897",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		}
+	]
+}

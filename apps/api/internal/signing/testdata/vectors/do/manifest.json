@@ -1,0 +1,96 @@
+{
+	"country": "DO",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "ecf",
+			"content_type": "application/xml",
+			"input": "ecf.in.xml",
+			"output": "ecf.out.xml",
+			"document_id": "E310000000001",
+			"document_type": "31",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "edge",
+			"content_type": "application/xml",
+			"input": "edge.in.xml",
+			"output": "edge.out.xml",
+			"document_id": "E310000000001",
+			"document_type": "31",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "root-xsi",
+			"note": "xmlns:xsi on the root, as .NET XmlSerializer writes it",
+			"content_type": "application/xml",
+			"input": "root-xsi.in.xml",
+			"output": "root-xsi.out.xml",
+			"document_id": "E310000000001",
+			"document_type": "31",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "root-ds",
+			"note": "known TS bug: xmldom serializes the Signature as ds:Signature, which its own verify rejects",
+			"content_type": "application/xml",
+			"input": "root-ds.in.xml",
+			"output": "root-ds.out.xml",
+			"document_id": "E310000000001",
+			"document_type": "31",
+			"self_verified": false,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "no-id",
+			"note": "no eNCF: the document id is random",
+			"content_type": "application/xml",
+			"input": "no-id.in.xml",
+			"output": "no-id.out.xml",
+			"document_id": "BD3D4006-7635-45D6-9F5E-12128AE87F77",
+			"document_type": "31",
+			"self_verified": true,
+			"random": "bd3d4006763535d61f5e12128ae87f77",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "bd3d4006-7635-45d6-9f5e-12128ae87f77"
+				}
+			]
+		},
+		{
+			"name": "cr-in-text",
+			"note": "known TS bug: xmldom writes the carriage return raw, a verifier reads a line feed",
+			"content_type": "application/xml",
+			"input": "cr-in-text.in.xml",
+			"output": "cr-in-text.out.xml",
+			"document_id": "E310000000001",
+			"document_type": "31",
+			"self_verified": false,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "doc-pi",
+			"note": "known TS bug: URI=\"\" covers the processing instructions outside the root, which TS left out of the digest",
+			"content_type": "application/xml",
+			"input": "doc-pi.in.xml",
+			"output": "doc-pi.out.xml",
+			"document_id": "E310000000001",
+			"document_type": "31",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		}
+	]
+}

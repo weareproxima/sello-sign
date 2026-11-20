@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ECF xmlns="http://dgii.gov.do/e-CF/v1.0">
+  <Encabezado>
+    <IdDoc>
+      <TipoeCF>31</TipoeCF>
+      <eNCF>E310000000001</eNCF>
+      <FechaVencimientoSecuencia>31-12-2026</FechaVencimientoSecuencia>
+    </IdDoc>
+    <Emisor>
+      <RNCEmisor>131234567</RNCEmisor>
+      <RazonSocialEmisor>Empresa Test SRL</RazonSocialEmisor>
+    </Emisor>
+    <Comprador>
+      <RNCComprador>101234567</RNCComprador>
+      <RazonSocialComprador>Cliente Test SRL</RazonSocialComprador>
+    </Comprador>
+    <Totales>
+      <MontoTotal>1180.00</MontoTotal>
+    </Totales>
+  </Encabezado>
+  <DetallesItems>
+    <Item>
+      <NumeroLinea>1</NumeroLinea>
+      <NombreItem>Servicio de Prueba</NombreItem>
+      <CantidadItem>1</CantidadItem>
+      <MontoItem>1000.00</MontoItem>
+    </Item>
+  </DetallesItems>
+</ECF>

@@ -1,0 +1,145 @@
+{
+	"country": "PE",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "invoice",
+			"content_type": "application/xml",
+			"input": "invoice.in.xml",
+			"output": "invoice.out.xml",
+			"document_id": "F001-00000001",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "boleta",
+			"content_type": "application/xml",
+			"input": "boleta.in.xml",
+			"output": "boleta.out.xml",
+			"document_id": "F001-00000001",
+			"document_type": "03",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "filled-extensions",
+			"note": "a new UBLExtension is appended",
+			"content_type": "application/xml",
+			"input": "filled-extensions.in.xml",
+			"output": "filled-extensions.out.xml",
+			"document_id": "F001-00000001",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "slot-first",
+			"content_type": "application/xml",
+			"input": "slot-first.in.xml",
+			"output": "slot-first.out.xml",
+			"document_id": "F001-00000001",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "no-extensions",
+			"note": "ext:UBLExtensions is created",
+			"content_type": "application/xml",
+			"input": "no-extensions.in.xml",
+			"output": "no-extensions.out.xml",
+			"document_id": "F001-00000001",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "no-ext-prefix",
+			"note": "the root does not declare ext: xmldom declares it on the new UBLExtensions",
+			"content_type": "application/xml",
+			"input": "no-ext-prefix.in.xml",
+			"output": "no-ext-prefix.out.xml",
+			"document_id": "F001-00000001",
+			"document_type": "01",
+			"self_verified": false,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "root-ds",
+			"note": "ds already declared on the root",
+			"content_type": "application/xml",
+			"input": "root-ds.in.xml",
+			"output": "root-ds.out.xml",
+			"document_id": "F001-00000001",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "credit-note",
+			"content_type": "application/xml",
+			"input": "credit-note.in.xml",
+			"output": "credit-note.out.xml",
+			"document_id": "FC01-00000009",
+			"document_type": "07",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "summary",
+			"content_type": "application/xml",
+			"input": "summary.in.xml",
+			"output": "summary.out.xml",
+			"document_id": "RC-20260115-1",
+			"document_type": "RC",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "voided",
+			"content_type": "application/xml",
+			"input": "voided.in.xml",
+			"output": "voided.out.xml",
+			"document_id": "RA-20260115-1",
+			"document_type": "RA",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "despatch",
+			"content_type": "application/xml",
+			"input": "despatch.in.xml",
+			"output": "despatch.out.xml",
+			"document_id": "T001-00000005",
+			"document_type": "09",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "edge",
+			"content_type": "application/xml",
+			"input": "edge.in.xml",
+			"output": "edge.out.xml",
+			"document_id": "F001-00000001",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		}
+	]
+}

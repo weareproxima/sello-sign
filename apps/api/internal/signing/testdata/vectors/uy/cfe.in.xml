@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CFE xmlns="http://cfe.dgi.gub.uy" version="1.0">
+  <eFact>
+    <Encabezado>
+    <IdDoc>
+      <TipoCFE>111</TipoCFE>
+      <Serie>A</Serie>
+      <Nro>1</Nro>
+      <FchEmis>2026-09-02</FchEmis>
+    </IdDoc>
+    <Emisor>
+      <RUCEmisor>211234567890</RUCEmisor>
+      <RznSoc>Empresa Test SA</RznSoc>
+    </Emisor>
+    <Totales>
+      <TpoMoneda>UYU</TpoMoneda>
+      <MntTotal>1180</MntTotal>
+    </Totales>
+  </Encabezado>
+  </eFact>
+</CFE>

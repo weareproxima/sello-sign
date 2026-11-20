@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ECF xmlns="http://dgii.gov.do/e-CF/v1.0">
+  <Encabezado>
+    <IdDoc>
+      <TipoeCF>31</TipoeCF>
+      <eNCF>E310000000001</eNCF>
+      <FechaVencimientoSecuencia>31-12-2026</FechaVencimientoSecuencia>
+    </IdDoc>
+    <Emisor>
+      <RNCEmisor>131234567</RNCEmisor>
+      <RazonSocialEmisor>Empresa Test SRL</RazonSocialEmisor>
+    </Emisor>
+    <Comprador>
+      <RNCComprador>101234567</RNCComprador>
+      <RazonSocialComprador>Cliente Test SRL</RazonSocialComprador>
+    </Comprador>
+    <Totales>
+      <MontoTotal>1180.00</MontoTotal>
+    </Totales>
+  </Encabezado>
+  <DetallesItems>
+    <Item>
+      <NumeroLinea>1</NumeroLinea>
+      <NombreItem>Servicio de Prueba</NombreItem>
+      <CantidadItem>1</CantidadItem>
+      <MontoItem>1000.00</MontoItem>
+    </Item>
+  </DetallesItems>
+<Edge a="x&amp;y" b="l1&#10;l2" c="t&#9;t" d='sq "dq" &lt;' e="lit	tab
+line" f="&gt;">texto &amp; &lt;b&gt; "q" 'a' ñ € 😀 &#x41;&#66;<![CDATA[<raw> & ]]><!-- comentario --><Vacio></Vacio><Otro/><p:Extra xmlns:p="urn:extra" p:z="1" z="2" a="3"><p:Inner>x</p:Inner></p:Extra></Edge></ECF>

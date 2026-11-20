@@ -1,0 +1,19 @@
+# Lo que pide `bun run dev`: Postgres y Valkey, en puertos que no chocan con
+# los de Sello (5433, 6380) ni con los de sign-old (5432, 6379).
+services:
+  postgres:
+    image: docker.io/library/postgres:17-alpine
+    environment:
+      POSTGRES_USER: sign
+      POSTGRES_PASSWORD: sign
+      POSTGRES_DB: sign
+    ports:
+      - '127.0.0.1:5434:5432'
+    volumes:
+      - postgres:/var/lib/postgresql/data
+  valkey:
+    image: docker.io/valkey/valkey:9.0.1-alpine
+    ports:
+      - '127.0.0.1:6381:6379'
+volumes:
+  postgres:

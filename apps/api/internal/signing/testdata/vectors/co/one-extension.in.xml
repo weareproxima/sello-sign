@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:sts="dian:gov:co:facturaelectronica:Structures-2-1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<ext:UBLExtensions>
+		<ext:UBLExtension>
+			<ext:ExtensionContent>
+				<sts:DianExtensions>
+					<sts:InvoiceControl>
+						<sts:InvoiceAuthorization>18760000001</sts:InvoiceAuthorization>
+						<sts:AuthorizationPeriod>
+							<cbc:StartDate>2026-01-01</cbc:StartDate>
+							<cbc:EndDate>2027-01-01</cbc:EndDate>
+						</sts:AuthorizationPeriod>
+						<sts:AuthorizedInvoices>
+							<sts:Prefix>SETP</sts:Prefix>
+							<sts:From>990000000</sts:From>
+							<sts:To>995000000</sts:To>
+						</sts:AuthorizedInvoices>
+					</sts:InvoiceControl>
+					<sts:InvoiceSource>
+						<cbc:IdentificationCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listSchemeURI="urn:oasis:names:specification:ubl:codelist:gc:CountryIdentificationCode-2.1">CO</cbc:IdentificationCode>
+					</sts:InvoiceSource>
+					<sts:SoftwareProvider>
+						<sts:ProviderID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Direccion de Impuestos y Aduanas Nacionales)" schemeID="7" schemeName="31">900123456</sts:ProviderID>
+						<sts:SoftwareID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Direccion de Impuestos y Aduanas Nacionales)">56f2ae4e-9812-4fad-9255-08fcfcd5f4a9</sts:SoftwareID>
+					</sts:SoftwareProvider>
+					<sts:SoftwareSecurityCode schemeAgencyID="195" schemeAgencyName="CO, DIAN (Direccion de Impuestos y Aduanas Nacionales)">a8d18e4d1e1b7b0e6e1f2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f70</sts:SoftwareSecurityCode>
+					<sts:AuthorizationProvider>
+						<sts:AuthorizationProviderID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Direccion de Impuestos y Aduanas Nacionales)" schemeID="4" schemeName="31">800197268</sts:AuthorizationProviderID>
+					</sts:AuthorizationProvider>
+					<sts:QRCode>https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=8bb0bb0cd1e0f2c3a4b5c6d7e8f90a1b2c3d4e5f</sts:QRCode>
+				</sts:DianExtensions>
+			</ext:ExtensionContent>
+		</ext:UBLExtension>
+	</ext:UBLExtensions>
+	<cbc:UBLVersionID>UBL 2.1</cbc:UBLVersionID>
+	<cbc:CustomizationID>10</cbc:CustomizationID>
+	<cbc:ProfileID>DIAN 2.1: Factura Electronica de Venta</cbc:ProfileID>
+	<cbc:ProfileExecutionID>2</cbc:ProfileExecutionID>
+	<cbc:ID>SETP990000001</cbc:ID>
+	<cbc:UUID schemeID="2" schemeName="CUFE-SHA384">8bb0bb0cd1e0f2c3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b</cbc:UUID>
+	<cbc:IssueDate>2026-01-15</cbc:IssueDate>
+	<cbc:IssueTime>10:30:00-05:00</cbc:IssueTime>
+	<cbc:InvoiceTypeCode>01</cbc:InvoiceTypeCode>
+	<cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>
+	<cbc:LineCountNumeric>1</cbc:LineCountNumeric>
+	<cac:AccountingSupplierParty>
+		<cbc:AdditionalAccountID>1</cbc:AdditionalAccountID>
+		<cac:Party>
+			<cac:PartyName>
+				<cbc:Name>EMPRESA DE PRUEBAS SAS</cbc:Name>
+			</cac:PartyName>
+			<cac:PartyTaxScheme>
+				<cbc:RegistrationName>EMPRESA DE PRUEBAS SAS</cbc:RegistrationName>
+				<cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Direccion de Impuestos y Aduanas Nacionales)" schemeID="7" schemeName="31">900123456</cbc:CompanyID>
+				<cbc:TaxLevelCode listName="49">O-13</cbc:TaxLevelCode>
+				<cac:TaxScheme>
+					<cbc:ID>01</cbc:ID>
+					<cbc:Name>IVA</cbc:Name>
+				</cac:TaxScheme>
+			</cac:PartyTaxScheme>
+		</cac:Party>
+	</cac:AccountingSupplierParty>
+	<cac:AccountingCustomerParty>
+		<cbc:AdditionalAccountID>2</cbc:AdditionalAccountID>
+		<cac:Party>
+			<cac:PartyName>
+				<cbc:Name>CLIENTE DE PRUEBAS LTDA</cbc:Name>
+			</cac:PartyName>
+			<cac:PartyTaxScheme>
+				<cbc:RegistrationName>CLIENTE DE PRUEBAS LTDA</cbc:RegistrationName>
+				<cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Direccion de Impuestos y Aduanas Nacionales)" schemeID="3" schemeName="31">800987654</cbc:CompanyID>
+				<cbc:TaxLevelCode listName="48">R-99-PN</cbc:TaxLevelCode>
+				<cac:TaxScheme>
+					<cbc:ID>01</cbc:ID>
+					<cbc:Name>IVA</cbc:Name>
+				</cac:TaxScheme>
+			</cac:PartyTaxScheme>
+		</cac:Party>
+	</cac:AccountingCustomerParty>
+	<cac:LegalMonetaryTotal>
+		<cbc:LineExtensionAmount currencyID="COP">100000.00</cbc:LineExtensionAmount>
+		<cbc:TaxExclusiveAmount currencyID="COP">100000.00</cbc:TaxExclusiveAmount>
+		<cbc:TaxInclusiveAmount currencyID="COP">119000.00</cbc:TaxInclusiveAmount>
+		<cbc:PayableAmount currencyID="COP">119000.00</cbc:PayableAmount>
+	</cac:LegalMonetaryTotal>
+	<cac:InvoiceLine>
+		<cbc:ID>1</cbc:ID>
+		<cbc:InvoicedQuantity unitCode="94">1.000000</cbc:InvoicedQuantity>
+		<cbc:LineExtensionAmount currencyID="COP">100000.00</cbc:LineExtensionAmount>
+		<cac:Item>
+			<cbc:Description>Servicio de facturacion electronica</cbc:Description>
+		</cac:Item>
+		<cac:Price>
+			<cbc:PriceAmount currencyID="COP">100000.00</cbc:PriceAmount>
+		</cac:Price>
+	</cac:InvoiceLine>
+</Invoice>

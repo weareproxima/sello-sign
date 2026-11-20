@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<facturaElectronicaCompraVenta xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.sin.gob.bo/xsd/fe">
+  <cabecera>
+    <nitEmisor>1023456028</nitEmisor>
+    <razonSocialEmisor>Empresa Test SRL</razonSocialEmisor>
+    <municipio>La Paz</municipio>
+    <telefono>70000000</telefono>
+    <numeroFactura>1</numeroFactura>
+    <cuf>8727F63A15F8976591FDDE5B387C5D015A29E06A1A19E23EF34124CD</cuf>
+    <cufd>A19E23EF34124CD</cufd>
+    <codigoSucursal>0</codigoSucursal>
+    <direccion>Calle Falsa 123</direccion>
+    <fechaEmision>2026-09-02T10:00:00.000-04:00</fechaEmision>
+    <nombreRazonSocial>Cliente Test</nombreRazonSocial>
+    <codigoTipoDocumentoIdentidad>1</codigoTipoDocumentoIdentidad>
+    <numeroDocumento>1234567</numeroDocumento>
+    <codigoCliente>1234567</codigoCliente>
+    <codigoMetodoPago>1</codigoMetodoPago>
+    <montoTotal>118.00</montoTotal>
+    <montoTotalSujetoIva>118.00</montoTotalSujetoIva>
+    <codigoMoneda>1</codigoMoneda>
+    <tipoCambio>1.00</tipoCambio>
+    <montoTotalMoneda>118.00</montoTotalMoneda>
+    <montoGiftCard>0.00</montoGiftCard>
+    <descuentoAdicional>0.00</descuentoAdicional>
+    <codigoExcepcion>0</codigoExcepcion>
+    <cafc>0</cafc>
+    <leyenda>Ley N. 453: El Proveedor informara al Consumidor</leyenda>
+    <usuario>testuser</usuario>
+    <codigoDocumentoSector>1</codigoDocumentoSector>
+  </cabecera>
+  <detalle>
+    <actividadEconomica>620100</actividadEconomica>
+    <codigoProductoSin>82150</codigoProductoSin>
+    <codigoProducto>PROD-001</codigoProducto>
+    <descripcion>Servicio de Prueba</descripcion>
+    <cantidad>1</cantidad>
+    <unidadMedida>58</unidadMedida>
+    <precioUnitario>100.00</precioUnitario>
+    <montoDescuento>0.00</montoDescuento>
+    <subTotal>100.00</subTotal>
+    <numeroSerie>0</numeroSerie>
+    <numeroImei>0</numeroImei>
+  </detalle>
+</facturaElectronicaCompraVenta>

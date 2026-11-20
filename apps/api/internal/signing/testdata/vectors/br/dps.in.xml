@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.00">
+	<infDPS Id="DPS3550308123456780001991000000000000001" versao="1.00">
+		<tpAmb>2</tpAmb>
+		<dhEmi>2026-01-15T10:30:00-03:00</dhEmi>
+		<verAplic>SelloSign1.0</verAplic>
+		<serie>00001</serie>
+		<nDPS>1</nDPS>
+		<dCompet>2026-01-15</dCompet>
+		<tpEmit>1</tpEmit>
+		<cLocEmi>3550308</cLocEmi>
+		<prest>
+			<CNPJ>12345678000199</CNPJ>
+		</prest>
+		<toma>
+			<CNPJ>98765432000188</CNPJ>
+			<xNome>CLIENTE TESTE SA</xNome>
+		</toma>
+		<serv>
+			<locPrest>
+				<cLocPrestacao>3550308</cLocPrestacao>
+			</locPrest>
+			<cServ>
+				<cTribNac>010101</cTribNac>
+				<xDescServ>Assinatura digital de documentos fiscais</xDescServ>
+			</cServ>
+		</serv>
+		<valores>
+			<vServPrest>
+				<vServ>100.00</vServ>
+			</vServPrest>
+		</valores>
+	</infDPS>
+</DPS>

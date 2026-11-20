@@ -1,0 +1,4 @@
+apps/panel/src/routeTree.gen.ts
+bun.lock
+apps/api/internal/**/testdata
+.wrangler

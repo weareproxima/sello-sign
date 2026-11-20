@@ -1,0 +1,7 @@
+/* The panel's theme: Sello's design system (Capas, Piedra palette), installed
+   from its public shadcn registry (https://sello.tax/r). `styles/sello/` (the
+   tokens, the shared utilities and their Tailwind wiring) and
+   `components/ui/` come from there and aren't edited here: see «El sistema de
+   diseño» in AGENTS.md. */
+@import 'tailwindcss';
+@import './styles/sello/theme.css';

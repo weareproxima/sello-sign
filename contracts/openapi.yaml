@@ -1,0 +1,1395 @@
+openapi: 3.1.0
+info:
+  title: Sello Sign API
+  version: 1.0.0
+  summary: Firma y verificación de documentos tributarios electrónicos.
+  description: |
+    El contrato del API de Sello Sign. Su forma está en `contracts/README.md`;
+    este archivo es el detalle, y los dos cambian juntos.
+
+    - JSON en `snake_case`; los ids son UUIDv7 en texto.
+    - Los errores son `application/problem+json` (RFC 9457) con `type` (un slug
+      estable), `title`, `status` y `detail`. La única excepción es el `404`
+      del empuje de billing, cuyo `type` es la URI que billing ya reconoce.
+    - Toda lista responde `{ "items": [...], "next_cursor": "…" | null }`.
+      Las que crecen (organizaciones, claves, registro de firmas) se paginan
+      con `?limit=` (1 a 100, 50 por defecto) y `?cursor=`; las demás
+      (miembros, certificados, delegaciones…) van enteras, con
+      `next_cursor: null`.
+  license:
+    name: AGPL-3.0-only
+    url: https://www.gnu.org/licenses/agpl-3.0.html
+servers:
+  - url: https://api.sign.sello.tax
+  - url: http://127.0.0.1:4441
+tags:
+  - name: Firma
+  - name: Espacios
+  - name: Organizaciones
+  - name: Certificados
+  - name: Delegaciones
+  - name: Claves
+  - name: Registro
+  - name: Billing
+  - name: Sistema
+security:
+  - apiKey: []
+  - panelToken: []
+
+paths:
+  /signatures:
+    post:
+      tags: [Firma]
+      operationId: sign
+      summary: Firmar un documento
+      description: |
+        Firma el documento tal cual llega con el certificado activo del
+        ambiente de la clave. Lo firmado cuenta en el espacio de la clave,
+        también cuando la organización es de otro espacio y se firma por
+        delegación.
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: El DTE de El Salvador.
+          application/xml:
+            schema:
+              type: string
+              description: El comprobante de los demás países.
+      responses:
+        '200':
+          description: Firmado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Signed' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409':
+          description: |
+            `country-not-enabled` (el país de la organización no se ofrece),
+            `certificate-not-active` (sin certificado activo en el ambiente),
+            `certificate-expired` o `organization-ambiguous` (el NIT nombra a
+            más de una organización).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422':
+          description: '`invalid-document`: el cuerpo no es un documento que el país firme.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '501':
+          description: '`country-not-implemented`: el firmador del país todavía no existe.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /verifications:
+    post:
+      tags: [Firma]
+      operationId: verify
+      summary: Verificar una firma
+      description: Verifica una firma con el certificado activo del ambiente de la clave.
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signature]
+              properties:
+                signature:
+                  type: string
+                  description: El JWS (El Salvador) o el XML firmado.
+      responses:
+        '200':
+          description: El resultado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Verification' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '501': { $ref: '#/components/responses/Problem' }
+
+  /me:
+    get:
+      tags: [Espacios]
+      operationId: getMe
+      summary: La persona y sus espacios
+      security:
+        - panelToken: []
+      responses:
+        '200':
+          description: La persona.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, workspaces]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  workspaces:
+                    type: array
+                    items: { $ref: '#/components/schemas/WorkspaceSummary' }
+        '401': { $ref: '#/components/responses/Problem' }
+  /me/sello-organizations:
+    get:
+      tags: [Espacios]
+      operationId: listSelloOrganizations
+      summary: Las organizaciones del IdP de la persona (nube)
+      description: |
+        Las organizaciones que dice el token (`sello_workspaces`), cada una con
+        lo que la persona puede hacer con ella aquí. Fuera de la nube, `404`.
+      security:
+        - panelToken: []
+      responses:
+        '200':
+          description: Las organizaciones.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SelloOrganization' }
+                  next_cursor: { type: 'null' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /workspaces:
+    post:
+      tags: [Espacios]
+      operationId: createWorkspace
+      summary: Crear o abrir un espacio
+      description: |
+        En una instalación propia, `{ "name", "default_country" }`: crea un
+        espacio y quien lo crea es su `owner`. En la nube,
+        `{ "sello_workspace_id" }`: abre el espacio de esa organización del IdP
+        (lo crea la primera vez quien la administra; después lo abre cualquiera
+        de sus miembros, mientras el plan los admita). `201` si se creó, `200`
+        si ya existía.
+      security:
+        - panelToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  title: Instalación propia
+                  required: [name]
+                  properties:
+                    name: { type: string, minLength: 1, maxLength: 120 }
+                    default_country: { $ref: '#/components/schemas/Country' }
+                - type: object
+                  title: Nube
+                  required: [sello_workspace_id]
+                  properties:
+                    sello_workspace_id: { type: string }
+      responses:
+        '200':
+          description: El espacio ya existía.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Workspace' }
+        '201':
+          description: Creado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Workspace' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403':
+          description: '`ask-admin`: solo quien administra la organización del IdP abre su espacio la primera vez; `forbidden`: no es una organización de la persona.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: '`workspace-full`: el plan no admite a la persona; `sello-organization-unknown`: billing todavía no conoce la organización.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '410':
+          description: '`sello-organization-closed`: la organización se borró en el IdP.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '503':
+          description: '`billing-unavailable`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /workspaces/{workspace_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Espacios]
+      operationId: getWorkspace
+      summary: Un espacio
+      responses:
+        '200':
+          description: El espacio.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Workspace' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [Espacios]
+      operationId: updateWorkspace
+      summary: Cambiar un espacio
+      description: Solo `owner` o `admin`, con el token. En la nube, el nombre es el de la organización del IdP, y billing lo reemplaza en su próximo empuje.
+      security:
+        - panelToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 120 }
+                default_country:
+                  oneOf:
+                    - $ref: '#/components/schemas/Country'
+                    - type: 'null'
+      responses:
+        '200':
+          description: El espacio.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Workspace' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /workspaces/{workspace_id}/members:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Espacios]
+      operationId: listMembers
+      summary: Los miembros de un espacio
+      security:
+        - panelToken: []
+      responses:
+        '200':
+          description: Los miembros.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Member' }
+                  next_cursor: { type: 'null' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /workspaces/{workspace_id}/usage:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Espacios]
+      operationId: getUsage
+      summary: Lo que firmó el espacio, por mes y ambiente
+      description: Lo que firmaron las claves y las personas del espacio, también con organizaciones delegadas. Pide `logs:read`.
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+          description: El primer mes (AAAA-MM); por defecto, once meses antes del actual.
+        - name: to
+          in: query
+          schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+          description: El último mes (AAAA-MM); por defecto, el actual (UTC).
+      responses:
+        '200':
+          description: El uso.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usage' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /workspaces/{workspace_id}/organizations:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Organizaciones]
+      operationId: listOrganizations
+      summary: Las organizaciones del espacio y las que tiene delegadas
+      description: Pide `organizations:read`. Una clave de una sola organización ve solo esa.
+      parameters:
+        - name: relation
+          in: query
+          schema: { type: string, enum: [owned, delegated] }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Las organizaciones, de la más nueva a la más antigua.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Organization' }
+                  next_cursor: { $ref: '#/components/schemas/NextCursor' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Organizaciones]
+      operationId: createOrganization
+      summary: Crear una organización
+      description: |
+        Pide `organizations:write`. Idempotente por espacio, país y NIT (sin
+        guiones, espacios ni puntos): si ya existe, `200` con la que hay.
+        `sello_workspace_id` solo lo pone el espacio de la plataforma o una
+        persona que administra esa organización del IdP, y es único
+        (`409 sello-workspace-linked`). En el orden inverso, cuando el espacio
+        de la plataforma nombra uno que ya vincula una organización del
+        espacio de una empresa, `200` con esa organización
+        (`relation: delegated`): la plataforma se da, si no la tiene, la
+        delegación `locked` (`sign`, `certificates:read`,
+        `certificates:write`), y no se crea una segunda; si esa organización
+        tiene otro NIT u otro país que los pedidos, `409 organization-mismatch`.
+        Desde cualquier otro
+        espacio sigue siendo `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrganizationInput' }
+      responses:
+        '200':
+          description: Ya existía en el espacio o, para el de la plataforma, en el de una empresa, ahora delegada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Organization' }
+        '201':
+          description: Creada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Organization' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /workspaces/{workspace_id}/organizations/{organization_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Organizaciones]
+      operationId: getOrganization
+      summary: Una organización
+      responses:
+        '200':
+          description: La organización.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Organization' }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [Organizaciones]
+      operationId: updateOrganization
+      summary: Cambiar una organización
+      description: Solo su dueño, con `organizations:write`. El país y el NIT no cambian.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 200 }
+                contact_email: { type: [string, 'null'], format: email }
+                sello_workspace_id: { type: [string, 'null'] }
+      responses:
+        '200':
+          description: La organización.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Organization' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [Organizaciones]
+      operationId: deleteOrganization
+      summary: Borrar una organización
+      description: Solo su dueño. Con delegaciones vivas, `409 organization-has-delegations`.
+      responses:
+        '204': { description: Borrada. }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /workspaces/{workspace_id}/organizations/{organization_id}/signatures:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/OrganizationId'
+    post:
+      tags: [Firma]
+      operationId: signFromPanel
+      summary: Firmar de prueba desde el panel
+      description: Lo mismo que `POST /signatures`, con el token del panel. Un `member` firma solo en `test`.
+      security:
+        - panelToken: []
+      parameters:
+        - name: environment
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Environment' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+          application/xml:
+            schema: { type: string }
+      responses:
+        '200':
+          description: Firmado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Signed' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '501': { $ref: '#/components/responses/Problem' }
+
+  /workspaces/{workspace_id}/organizations/{organization_id}/certificates:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Certificados]
+      operationId: listCertificates
+      summary: Los certificados de una organización
+      description: Pide `certificates:read` y, si la organización está delegada, que la delegación lo dé.
+      responses:
+        '200':
+          description: Los certificados, del más nuevo al más antiguo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Certificate' }
+                  next_cursor: { type: 'null' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Certificados]
+      operationId: uploadCertificate
+      summary: Subir un certificado
+      description: |
+        Pide `certificates:write` y, si la organización está delegada, que la
+        delegación lo dé. El país lee el archivo; su NIT, si lo trae, tiene
+        que ser el de la organización. Activarlo desactiva el otro activo del
+        mismo ambiente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [environment, file]
+              properties:
+                environment: { $ref: '#/components/schemas/Environment' }
+                file:
+                  {
+                    type: string,
+                    contentEncoding: base64,
+                    description: El archivo,
+                    en base64.,
+                  }
+                password: { type: string, description: El PIN de un PKCS#12. }
+                activate: { type: boolean, default: true }
+      responses:
+        '201':
+          description: Subido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Certificate' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422':
+          description: '`invalid-certificate` o `certificate-tax-id-mismatch`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '501': { $ref: '#/components/responses/Problem' }
+  /workspaces/{workspace_id}/organizations/{organization_id}/certificates/{certificate_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/OrganizationId'
+      - name: certificate_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Certificados]
+      operationId: updateCertificate
+      summary: Activar o desactivar un certificado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active: { type: boolean }
+      responses:
+        '200':
+          description: El certificado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Certificate' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [Certificados]
+      operationId: deleteCertificate
+      summary: Borrar un certificado
+      responses:
+        '204': { description: Borrado. }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /workspaces/{workspace_id}/organizations/{organization_id}/delegations:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Delegaciones]
+      operationId: listDelegations
+      summary: Las delegaciones de una organización
+      description: Solo su dueño, con `delegations:read`.
+      responses:
+        '200':
+          description: Las delegaciones.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Delegation' }
+                  next_cursor: { type: 'null' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Delegaciones]
+      operationId: createDelegation
+      summary: Delegar una organización a otro espacio
+      description: Solo su dueño, con `delegations:write`. Una por espacio (`409 delegation-exists`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_id, scopes]
+              properties:
+                workspace_id: { type: string, format: uuid }
+                scopes:
+                  type: array
+                  minItems: 1
+                  items: { $ref: '#/components/schemas/DelegationScope' }
+      responses:
+        '201':
+          description: Creada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Delegation' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /workspaces/{workspace_id}/organizations/{organization_id}/delegations/{delegation_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/OrganizationId'
+      - name: delegation_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Delegaciones]
+      operationId: deleteDelegation
+      summary: Quitar una delegación
+      description: |
+        Con `delegations:write`. El dueño quita las que no están bloqueadas
+        (`409 delegation-locked`); el espacio delegado (`workspace_id` del
+        camino es el de la delegación) renuncia a la suya, también a una
+        bloqueada: así la quita la plataforma cuando la organización deja de
+        emitir con ella.
+      responses:
+        '204': { description: Quitada. }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /workspaces/{workspace_id}/claimable-organizations:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Organizaciones]
+      operationId: listClaimableOrganizations
+      summary: Las organizaciones que la persona puede traer del espacio de Sello (nube)
+      description: Las del espacio de la plataforma vinculadas a organizaciones del IdP que la persona administra. Solo `owner` o `admin` del espacio.
+      security:
+        - panelToken: []
+      responses:
+        '200':
+          description: Las organizaciones.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Organization' }
+                  next_cursor: { type: 'null' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /workspaces/{workspace_id}/organization-claims:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      tags: [Organizaciones]
+      operationId: claimOrganizations
+      summary: Traer organizaciones del espacio de Sello (nube)
+      description: |
+        Las pasa al espacio con sus certificados y su historial y deja una
+        delegación bloqueada (`sign`, `certificates:read`,
+        `certificates:write`) al espacio de la plataforma, todo en la misma
+        transacción. Si alguna no se puede traer, no se trae ninguna.
+      security:
+        - panelToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_ids]
+              properties:
+                organization_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Las organizaciones traídas.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Organization' }
+                  next_cursor: { type: 'null' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404':
+          description: '`organization-not-claimable`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: '`organization-exists`: el espacio ya tiene una organización con ese país y NIT.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /workspaces/{workspace_id}/api-keys:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Claves]
+      operationId: listApiKeys
+      summary: Las claves del espacio
+      description: Pide `keys:read`. Las revocadas no se listan.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Las claves.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ApiKey' }
+                  next_cursor: { $ref: '#/components/schemas/NextCursor' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Claves]
+      operationId: createApiKey
+      summary: Crear una clave
+      description: |
+        Pide `keys:write`. Una clave que crea otra no le da más de lo que
+        tiene: ni otros scopes, ni otro ambiente, ni otra organización.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, environment, scopes]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 120 }
+                environment: { $ref: '#/components/schemas/Environment' }
+                scopes:
+                  type: array
+                  minItems: 1
+                  items: { $ref: '#/components/schemas/Scope' }
+                organization_id: { type: [string, 'null'], format: uuid }
+      responses:
+        '201':
+          description: La clave, con `key`, que no se vuelve a mostrar.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiKey'
+                  - type: object
+                    required: [key]
+                    properties:
+                      key: { type: string, example: sign_test_3kq9… }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /workspaces/{workspace_id}/api-keys/{api_key_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - name: api_key_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Claves]
+      operationId: revokeApiKey
+      summary: Revocar una clave
+      responses:
+        '204': { description: Revocada. }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /workspaces/{workspace_id}/signatures:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Registro]
+      operationId: listSignatures
+      summary: El registro de firmas
+      description: |
+        Lo que firmó el espacio y, para sus organizaciones, lo que firmó con
+        ellas otro espacio por delegación (`signed_by_workspace_id`, sin su
+        `api_key_id` ni su `user_id`). Pide `logs:read`. Nunca guarda el
+        documento.
+      parameters:
+        - name: organization_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: environment
+          in: query
+          schema: { $ref: '#/components/schemas/Environment' }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Las firmas, de la más nueva a la más antigua.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SignatureEntry' }
+                  next_cursor: { $ref: '#/components/schemas/NextCursor' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /workspaces/{workspace_id}/signatures/{signature_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - name: signature_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Registro]
+      operationId: getSignature
+      summary: Una firma del registro
+      responses:
+        '200':
+          description: La firma.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SignatureEntry' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/billing/organizations/{sello_workspace_id}:
+    put:
+      tags: [Billing]
+      operationId: pushBillingState
+      summary: El estado de un espacio, desde billing (nube)
+      description: |
+        Billing de Sello empuja el estado completo de un espacio en cada
+        cambio. Se aplica solo si su `version` es mayor que la aplicada; si
+        no, `204` igual. Fuera de la nube, `404`.
+
+        Un estado cerrado deja de firmar en el espacio y, en la misma
+        transacción, devuelve al espacio de la plataforma cada organización
+        suya de la que la plataforma tiene la delegación `locked`, con sus
+        certificados y su historial: se quitan esa delegación y las que el
+        espacio había dado de ella a otros, y se revocan sus claves de solo
+        esa organización. Las demás se quedan; reabrir el espacio no trae de
+        vuelta las devueltas, y repetir el estado cerrado no cambia nada.
+      security:
+        - billingPush: []
+      parameters:
+        - name: sello_workspace_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BillingState' }
+      responses:
+        '204': { description: Aplicado, o ya tenía esa versión o una mayor. }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404':
+          description: 'Sin espacio de esa organización: `type` es `https://sello.tax/problems/sign-unknown-organization`, y billing deja de empujarlo.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /health:
+    get:
+      tags: [Sistema]
+      operationId: health
+      summary: Salud
+      security: []
+      responses:
+        '200':
+          description: Vivo, con su base.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [ok] }
+        '503': { $ref: '#/components/responses/Problem' }
+  /openapi.yaml:
+    get:
+      tags: [Sistema]
+      operationId: openapi
+      summary: Este contrato
+      security: []
+      responses:
+        '200':
+          description: El contrato.
+          content:
+            application/yaml:
+              schema: { type: string }
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: '`sign_test_…` o `sign_prod_…`: el ambiente es el de su prefijo.'
+    panelToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: El token del panel (better-auth, EdDSA), con `iss` = `PANEL_URL` y `aud` = `API_URL`.
+    billingPush:
+      type: http
+      scheme: bearer
+      description: '`BILLING_PUSH_TOKEN`.'
+
+  parameters:
+    WorkspaceId:
+      name: workspace_id
+      in: path
+      required: true
+      description: El id del espacio, o `self` (el de la clave).
+      schema: { type: string }
+    OrganizationId:
+      name: organization_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OrganizationHeader:
+      name: X-Organization-Id
+      in: header
+      required: true
+      description: El id de la organización o su NIT, entre las que alcanza la clave.
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  responses:
+    Problem:
+      description: Un error.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          description: |
+            Un slug estable: `unauthorized`, `forbidden`, `not-found`,
+            `invalid-request`, `workspace-not-found`,
+            `organization-not-found`, `organization-required`,
+            `organization-ambiguous`, `organization-exists`,
+            `organization-has-delegations`, `organization-not-claimable`,
+            `not-organization-owner`, `sello-workspace-linked`,
+            `organization-mismatch`,
+            `certificate-not-found`, `certificate-not-active`,
+            `certificate-expired`, `certificate-tax-id-mismatch`,
+            `invalid-certificate`, `delegation-not-found`,
+            `delegation-exists`, `delegation-locked`, `api-key-not-found`,
+            `signature-not-found`, `country-not-enabled`,
+            `country-not-implemented`, `unsupported-content-type`,
+            `invalid-document`, `payload-too-large`, `workspace-closed`,
+            `workspace-full`, `ask-admin`, `sello-organization-unknown`,
+            `sello-organization-closed`, `billing-unavailable`,
+            `not-cloud`, `internal`.
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+    NextCursor:
+      type: [string, 'null']
+    Environment:
+      type: string
+      enum: [test, prod]
+    Country:
+      type: string
+      pattern: '^[A-Z]{2}$'
+      description: ISO 3166-1 alfa-2.
+    Role:
+      type: string
+      enum: [owner, admin, member]
+    Scope:
+      type: string
+      enum:
+        - sign
+        - organizations:read
+        - organizations:write
+        - certificates:read
+        - certificates:write
+        - delegations:read
+        - delegations:write
+        - keys:read
+        - keys:write
+        - logs:read
+    DelegationScope:
+      type: string
+      enum: [sign, certificates:read, certificates:write]
+    Signed:
+      type: object
+      required: [signature, document_id, document_type]
+      properties:
+        signature: { type: string, description: El JWS o el XML firmado. }
+        document_id: { type: string }
+        document_type: { type: string }
+    Verification:
+      type: object
+      required: [valid, document, document_id, document_type]
+      properties:
+        valid: { type: boolean }
+        document:
+          type: [string, 'null']
+          description: El documento firmado (el JSON de un JWS o el XML), en texto.
+        document_id: { type: string }
+        document_type: { type: string }
+    User:
+      type: object
+      required: [id, email, name]
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+    WorkspaceSummary:
+      type: object
+      required: [id, name, role, plan, default_country]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        plan:
+          {
+            type: [string, 'null'],
+            description: 'En la nube, el plan (`free`, `pro_starter`…); `null` en una instalación propia.',
+          }
+        default_country:
+          oneOf:
+            - $ref: '#/components/schemas/Country'
+            - type: 'null'
+    Workspace:
+      allOf:
+        - $ref: '#/components/schemas/WorkspaceSummary'
+        - type: object
+          required: [sello_workspace_id, closed, limits, created_at]
+          properties:
+            role:
+              description: El de la persona; `null` con una clave.
+              oneOf:
+                - $ref: '#/components/schemas/Role'
+                - type: 'null'
+            sello_workspace_id: { type: [string, 'null'] }
+            closed:
+              {
+                type: boolean,
+                description: La organización del IdP se borró; el espacio ya no firma.,
+              }
+            limits: { $ref: '#/components/schemas/Limits' }
+            created_at: { type: string, format: date-time }
+    Limits:
+      type: object
+      description: Los límites del plan; `null` es sin límite.
+      required:
+        [
+          organizations,
+          prod_signatures,
+          test_signatures,
+          members,
+          requests_per_minute,
+          retention_days,
+          prod_hard_cap,
+          test_hard_cap,
+        ]
+      properties:
+        organizations: { type: [integer, 'null'] }
+        prod_signatures: { type: [integer, 'null'] }
+        test_signatures: { type: [integer, 'null'] }
+        members: { type: [integer, 'null'] }
+        requests_per_minute: { type: [integer, 'null'] }
+        retention_days: { type: [integer, 'null'] }
+        prod_hard_cap: { type: [integer, 'null'] }
+        test_hard_cap: { type: [integer, 'null'] }
+    Member:
+      type: object
+      required: [user_id, email, name, role]
+      properties:
+        user_id:
+          {
+            type: [string, 'null'],
+            description: 'El usuario del panel; `null` para quien billing empujó y todavía no entró.',
+          }
+        email: { type: [string, 'null'] }
+        name: { type: [string, 'null'] }
+        role: { $ref: '#/components/schemas/Role' }
+    SelloOrganization:
+      type: object
+      required: [id, name, country, role, status, workspace_id, max_members]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        country: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        status:
+          type: string
+          enum: [open, available, ask, full, closed]
+          description: |
+            `open`: tiene espacio y la persona es miembro; `available`: no
+            tiene y la persona puede abrirlo; `ask`: no tiene y solo quien la
+            administra lo abre; `full`: el plan no admite a la persona;
+            `closed`: se borró en el IdP.
+        workspace_id: { type: [string, 'null'], format: uuid }
+        max_members: { type: [integer, 'null'] }
+    Usage:
+      type: object
+      required: [plan, limits, items]
+      properties:
+        plan: { type: [string, 'null'] }
+        limits: { $ref: '#/components/schemas/Limits' }
+        items:
+          type: array
+          items:
+            type: object
+            required: [month, environment, signatures]
+            properties:
+              month: { type: string, example: '2026-11' }
+              environment: { $ref: '#/components/schemas/Environment' }
+              signatures: { type: integer }
+    CertificateSummary:
+      type: object
+      required:
+        [
+          id,
+          environment,
+          tax_id,
+          subject,
+          issuer,
+          serial,
+          not_before,
+          not_after,
+          active,
+          created_at,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        environment: { $ref: '#/components/schemas/Environment' }
+        tax_id: { type: [string, 'null'] }
+        subject: { type: string }
+        issuer: { type: string }
+        serial: { type: string }
+        not_before: { type: [string, 'null'], format: date-time }
+        not_after: { type: [string, 'null'], format: date-time }
+        active: { type: boolean }
+        created_at: { type: string, format: date-time }
+    Certificate:
+      $ref: '#/components/schemas/CertificateSummary'
+    OrganizationInput:
+      type: object
+      required: [name, tax_id, country]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        tax_id: { type: string, minLength: 1, maxLength: 40 }
+        country: { $ref: '#/components/schemas/Country' }
+        contact_email: { type: [string, 'null'], format: email }
+        sello_workspace_id: { type: [string, 'null'] }
+    Organization:
+      type: object
+      required:
+        [
+          id,
+          workspace_id,
+          name,
+          tax_id,
+          country,
+          contact_email,
+          relation,
+          sello_workspace_id,
+          delegation,
+          certificates,
+          created_at,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id:
+          { type: string, format: uuid, description: El espacio dueño. }
+        name: { type: string }
+        tax_id: { type: string }
+        country: { $ref: '#/components/schemas/Country' }
+        contact_email: { type: [string, 'null'] }
+        relation: { type: string, enum: [owned, delegated] }
+        sello_workspace_id: { type: [string, 'null'] }
+        delegation:
+          description: Con `relation` = `delegated`, lo que la delegación deja hacer; si no, `null`.
+          oneOf:
+            - type: object
+              required: [id, scopes, locked]
+              properties:
+                id: { type: string, format: uuid }
+                scopes:
+                  type: array
+                  items: { $ref: '#/components/schemas/DelegationScope' }
+                locked: { type: boolean }
+            - type: 'null'
+        certificates:
+          type: object
+          description: El certificado activo de cada ambiente.
+          required: [test, prod]
+          properties:
+            test:
+              oneOf:
+                - $ref: '#/components/schemas/CertificateSummary'
+                - type: 'null'
+            prod:
+              oneOf:
+                - $ref: '#/components/schemas/CertificateSummary'
+                - type: 'null'
+        created_at: { type: string, format: date-time }
+    Delegation:
+      type: object
+      required: [id, workspace_id, workspace_name, scopes, locked, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        workspace_name: { type: string }
+        scopes:
+          type: array
+          items: { $ref: '#/components/schemas/DelegationScope' }
+        locked: { type: boolean }
+        created_at: { type: string, format: date-time }
+    ApiKey:
+      type: object
+      required:
+        [
+          id,
+          name,
+          environment,
+          scopes,
+          organization_id,
+          prefix,
+          last_used_at,
+          created_at,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        environment: { $ref: '#/components/schemas/Environment' }
+        scopes:
+          type: array
+          items: { $ref: '#/components/schemas/Scope' }
+        organization_id: { type: [string, 'null'], format: uuid }
+        prefix:
+          {
+            type: string,
+            description: 'El comienzo de la clave, para reconocerla: `sign_test_3kq9AbCd`.',
+          }
+        last_used_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+    SignatureEntry:
+      type: object
+      required:
+        [
+          id,
+          organization_id,
+          organization_name,
+          environment,
+          document_id,
+          document_type,
+          api_key_id,
+          user_id,
+          signed_by_workspace_id,
+          duration_ms,
+          created_at,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        organization_name:
+          {
+            type: [string, 'null'],
+            description: '`null` si la organización se borró.',
+          }
+        environment: { $ref: '#/components/schemas/Environment' }
+        document_id: { type: string }
+        document_type: { type: string }
+        api_key_id: { type: [string, 'null'], format: uuid }
+        user_id:
+          { type: [string, 'null'], description: Quien firmó desde el panel. }
+        signed_by_workspace_id: { type: string, format: uuid }
+        duration_ms: { type: integer }
+        created_at: { type: string, format: date-time }
+    BillingState:
+      type: object
+      description: '`SignStateBody` de `cmd/billing` de Sello.'
+      required: [workspace_id, version, plan, limits]
+      properties:
+        workspace_id: { type: string }
+        version: { type: integer }
+        closed: { type: boolean }
+        name: { type: string }
+        country: { type: [string, 'null'] }
+        members:
+          type: array
+          items:
+            type: object
+            required: [account, role]
+            properties:
+              account:
+                { type: string, description: El `sub` de la cuenta Sello. }
+              role: { type: string, enum: [OWNER, ADMIN, MEMBER] }
+        plan:
+          type: string
+          enum:
+            [FREE, PRO_STARTER, PRO_GROWTH, PRO_SCALE, PRO_BUSINESS, ENTERPRISE]
+        limits:
+          type: object
+          properties:
+            issuers: { type: [integer, 'null'] }
+            prod_signatures: { type: [integer, 'null'] }
+            test_signatures: { type: [integer, 'null'] }
+            members: { type: [integer, 'null'] }
+            requests_per_minute: { type: [integer, 'null'] }
+            retention_days: { type: [integer, 'null'] }
+        hard_caps:
+          type: object
+          properties:
+            prod: { type: [integer, 'null'] }
+            test: { type: [integer, 'null'] }
+        subscription:
+          type: [object, 'null']
+          properties:
+            status: { type: string }
+            interval: { type: [string, 'null'] }
+            current_period_end: { type: [string, 'null'], format: date-time }
+            cancel_at_period_end: { type: boolean }

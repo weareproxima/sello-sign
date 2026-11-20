@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factura version="1.1.0">
+	<infoTributaria>
+		<ambiente>1</ambiente>
+		<tipoEmision>1</tipoEmision>
+		<razonSocial>EMPRESA DE PRUEBA CIA LTDA</razonSocial>
+		<nombreComercial>Empresa de Prueba</nombreComercial>
+		<ruc>1791234567001</ruc>
+		<claveAcceso>2201202601179123456700110010010000000011234567814</claveAcceso>
+		<codDoc>01</codDoc>
+		<estab>001</estab>
+		<ptoEmi>001</ptoEmi>
+		<secuencial>000000001</secuencial>
+		<dirMatriz>Av. Amazonas N34-451 y Av. Atahualpa, Quito</dirMatriz>
+	</infoTributaria>
+	<infoFactura>
+		<fechaEmision>22/01/2026</fechaEmision>
+		<dirEstablecimiento>Av. Amazonas N34-451 y Av. Atahualpa, Quito</dirEstablecimiento>
+		<obligadoContabilidad>SI</obligadoContabilidad>
+		<tipoIdentificacionComprador>04</tipoIdentificacionComprador>
+		<razonSocialComprador>CLIENTE DE PRUEBA S.A.</razonSocialComprador>
+		<identificacionComprador>1790011110001</identificacionComprador>
+		<totalSinImpuestos>100.00</totalSinImpuestos>
+		<totalDescuento>0.00</totalDescuento>
+		<totalConImpuestos>
+			<totalImpuesto>
+				<codigo>2</codigo>
+				<codigoPorcentaje>4</codigoPorcentaje>
+				<baseImponible>100.00</baseImponible>
+				<valor>15.00</valor>
+			</totalImpuesto>
+		</totalConImpuestos>
+		<propina>0.00</propina>
+		<importeTotal>115.00</importeTotal>
+		<moneda>DOLAR</moneda>
+		<pagos>
+			<pago>
+				<formaPago>01</formaPago>
+				<total>115.00</total>
+			</pago>
+		</pagos>
+	</infoFactura>
+	<detalles>
+		<detalle>
+			<codigoPrincipal>SRV-001</codigoPrincipal>
+			<descripcion>Servicio de facturacion electronica</descripcion>
+			<cantidad>1.00</cantidad>
+			<precioUnitario>100.00</precioUnitario>
+			<descuento>0.00</descuento>
+			<precioTotalSinImpuesto>100.00</precioTotalSinImpuesto>
+			<impuestos>
+				<impuesto>
+					<codigo>2</codigo>
+					<codigoPorcentaje>4</codigoPorcentaje>
+					<tarifa>15.00</tarifa>
+					<baseImponible>100.00</baseImponible>
+					<valor>15.00</valor>
+				</impuesto>
+			</impuestos>
+		</detalle>
+	</detalles>
+	<infoAdicional>
+		<campoAdicional nombre="Email">cliente@example.com</campoAdicional>
+		<campoAdicional nombre="Telefono">022345678</campoAdicional>
+	</infoAdicional>
+</factura>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<evento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">
+	<infEvento Id="ID1101113526011234567800019955001000000001100000001701">
+		<cOrgao>35</cOrgao>
+		<tpAmb>2</tpAmb>
+		<CNPJ>12345678000199</CNPJ>
+		<chNFe>35260112345678000199550010000000011000000017</chNFe>
+		<dhEvento>2026-01-16T09:00:00-03:00</dhEvento>
+		<tpEvento>110111</tpEvento>
+		<nSeqEvento>1</nSeqEvento>
+		<verEvento>1.00</verEvento>
+		<detEvento versao="1.00">
+			<descEvento>Cancelamento</descEvento>
+			<nProt>135260000000001</nProt>
+			<xJust>Cancelamento por erro de digitacao no valor total</xJust>
+		</detEvento>
+	</infEvento>
+</evento>

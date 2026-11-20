@@ -1,0 +1,85 @@
+{
+	"country": "GT",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "dte",
+			"content_type": "application/xml",
+			"input": "dte.in.xml",
+			"output": "dte.out.xml",
+			"document_id": "987654321",
+			"document_type": "FACT",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "edge",
+			"note": "EDGE inside the signed DatosEmision",
+			"content_type": "application/xml",
+			"input": "edge.in.xml",
+			"output": "edge.out.xml",
+			"document_id": "987654321",
+			"document_type": "FACT",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "adenda",
+			"note": "an Adenda, never signed",
+			"content_type": "application/xml",
+			"input": "adenda.in.xml",
+			"output": "adenda.out.xml",
+			"document_id": "987654321",
+			"document_type": "FACT",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "certificado",
+			"note": "already certified: NumeroAutorizacion is the id and the issuer signature goes before FirmaCertificador",
+			"content_type": "application/xml",
+			"input": "certificado.in.xml",
+			"output": "certificado.out.xml",
+			"document_id": "A1B2C3D4-1234-4567-89AB-CDEF01234567",
+			"document_type": "FACT",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "no-id",
+			"note": "DatosEmision without ID: the signer adds it",
+			"content_type": "application/xml",
+			"input": "no-id.in.xml",
+			"output": "no-id.out.xml",
+			"document_id": "987654321",
+			"document_type": "FACT",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "no-numero",
+			"note": "no NumeroAcceso: the document id is random",
+			"content_type": "application/xml",
+			"input": "no-numero.in.xml",
+			"output": "no-numero.out.xml",
+			"document_id": "AF68BF98-FF9E-4706-96C3-9A2446A8DE60",
+			"document_type": "FACT",
+			"self_verified": true,
+			"random": "af68bf98ff9e1706d6c39a2446a8de60",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "af68bf98-ff9e-4706-96c3-9a2446a8de60"
+				}
+			]
+		}
+	]
+}

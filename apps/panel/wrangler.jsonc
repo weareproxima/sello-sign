@@ -1,0 +1,60 @@
+// The panel on Cloudflare Workers (docs/deploy.md). `bun run build:cloudflare`
+// builds it with Nitro's cloudflare_module preset, which reads this file and
+// writes the one wrangler uses, .output/server/wrangler.json, with `main`,
+// `assets` and the rules filled in: they don't go here. `bun run deploy`
+// publishes it.
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+
+	// ── Where it's published: these three change together ──────────────
+	// 1. The Worker's name. Not `sello-sign` (the old Sign, ../sign-old)
+	//    unless this one replaces it on purpose: a deploy under that name
+	//    overwrites it.
+	"name": "sello-sign-panel",
+	// 2. Its address: a Custom Domain on the sello.tax zone. Uncomment one:
+	//    the new panel replacing the old Worker (remove the domain from
+	//    `sello-sign` first), or a new name. Without `routes` it is only on
+	//    workers.dev.
+	// "routes": [{ "pattern": "sign.sello.tax", "custom_domain": true }],
+	// "routes": [{ "pattern": "panel.sign.sello.tax", "custom_domain": true }],
+	// 3. BETTER_AUTH_URL, in `vars` below: that same address, with https://.
+	// ────────────────────────────────────────────────────────────────────
+
+	// workerd's date: nodejs_compat from it on fills process.env with the
+	// vars and secrets. `pg` reaches Postgres through cloudflare:sockets.
+	"compatibility_date": "2026-09-20",
+	"compatibility_flags": ["nodejs_compat"],
+
+	"observability": {
+		"enabled": true,
+	},
+
+	// What isn't secret. The secrets, with `bunx wrangler secret put <NAME>`
+	// from apps/panel, never here: DATABASE_URL (Neon's pooled string),
+	// BETTER_AUTH_SECRET, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET and
+	// RESEND_API_KEY (without it the sales e-mail goes to the logs). For
+	// `wrangler dev`, .dev.vars overrides these (.dev.vars.example).
+	"vars": {
+		// The panel's own origin, with https:// and without a trailing slash:
+		// the `iss` of its tokens and the API's PANEL_URL. Empty, the panel
+		// answers 500 until it's set (src/lib/auth.ts).
+		"BETTER_AUTH_URL": "",
+		// The API's origin: the `aud` of the tokens (the API's API_URL) and
+		// where /api/sign/* goes.
+		"API_URL": "https://api.sign.sello.tax",
+		// Sello's cloud: spaces are Sello's organizations.
+		"CLOUD": "true",
+		// Sign in with the Sello account, as the only way in.
+		"OIDC_ISSUER": "https://account.sello.tax",
+		"OIDC_ONLY": "true",
+		"OIDC_PROVIDER_ID": "sello",
+		"OIDC_PROVIDER_NAME": "Sello",
+		// Sello's site: the only origin with CORS on /sales-inquiry, where its
+		// «Hablar con ventas» dialog posts (src/lib/sales-inquiry.ts).
+		"PUBLIC_SITE_URL": "https://sello.tax",
+		// Where that dialog's inquiries go, and who sends them (a sender of a
+		// domain verified in Resend).
+		"SALES_EMAIL": "sales@sign.sello.tax",
+		"EMAIL_FROM": "Sello Sign <noreply@sign.sello.tax>",
+	},
+}

@@ -1,0 +1,78 @@
+{
+	"country": "UY",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "cfe",
+			"content_type": "application/xml",
+			"input": "cfe.in.xml",
+			"output": "cfe.out.xml",
+			"document_id": "A-1",
+			"document_type": "111",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "cfe-adenda",
+			"content_type": "application/xml",
+			"input": "cfe-adenda.in.xml",
+			"output": "cfe-adenda.out.xml",
+			"document_id": "A-2",
+			"document_type": "111",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "envio",
+			"note": "one signature per CFE, each with URI=\"\" over its own CFE",
+			"content_type": "application/xml",
+			"input": "envio.in.xml",
+			"output": "envio.out.xml",
+			"document_id": "A-10",
+			"document_type": "111",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "edge",
+			"content_type": "application/xml",
+			"input": "edge.in.xml",
+			"output": "edge.out.xml",
+			"document_id": "A-1",
+			"document_type": "111",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "envio-prefixed",
+			"note": "prefixed CFEs that inherit their namespace from the envelope",
+			"content_type": "application/xml",
+			"input": "envio-prefixed.in.xml",
+			"output": "envio-prefixed.out.xml",
+			"document_id": "A-10",
+			"document_type": "111",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "root-ds",
+			"note": "known TS bug: xmldom serializes the Signature as ds:Signature, which its own verify rejects",
+			"content_type": "application/xml",
+			"input": "root-ds.in.xml",
+			"output": "root-ds.out.xml",
+			"document_id": "A-1",
+			"document_type": "111",
+			"self_verified": false,
+			"random": "",
+			"random_calls": []
+		}
+	]
+}

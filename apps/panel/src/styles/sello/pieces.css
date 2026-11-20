@@ -1,0 +1,113 @@
+/*
+ * Sello UI · @sello/theme · https://sello.tax/r/registry.json
+ * Copyright (c) 2026 Proxima AI LLC. MIT License: https://sello.tax/r/LICENSE.txt
+ *
+ * Generated from Sello's design system. Don't edit it here: update it with
+ * `bunx shadcn@latest add @sello/theme --overwrite`.
+ */
+
+/* Las piezas que el landing (Astro) y el chat (React) comparten tal cual.
+
+   Son utilidades de CSS y no componentes porque el landing no monta React: así
+   hay una sola definición, hecha solo con las variables de `tokens.css`, y las
+   dos apps la usan con una clase (`class="chip"`). Si una pieza se usa solo en
+   el chat, es un componente de `components/`, no una utilidad de aquí. Ver
+   «Piezas compartidas» en `DESIGN.md`. */
+
+/* El chip de sugerencia: relleno, sin contorno, píldora de 32 px. En reposo
+   se funde con la página; al pasar por encima el relleno sube un punto y el
+   texto gana contraste, que es toda la señal de que se puede pulsar. Un icono
+   dentro (el documento de prueba) va a 14 px y no cambia el color: todas las
+   sugerencias pesan lo mismo. */
+@utility chip {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: calc(var(--spacing) * 2);
+	height: var(--spacing-control-sm);
+	padding-inline: calc(var(--spacing) * 4);
+	border-radius: calc(infinity* 1px);
+	background-color: var(--fill);
+	color: var(--text-2);
+	font-size: var(--text-ui);
+	line-height: var(--text-ui--line-height);
+	white-space: nowrap;
+	transition-property: color, background-color;
+	transition-duration: var(--transition-duration-fast);
+	transition-timing-function: var(--ease-out);
+	& svg {
+		width: calc(var(--spacing) * 3.5);
+		height: calc(var(--spacing) * 3.5);
+		flex-shrink: 0;
+	}
+	@media (hover: hover) {
+		&:hover {
+			background-color: var(--fill-hover);
+			color: var(--text);
+		}
+	}
+}
+
+/* El código de país (SV, EC, DO): siempre esta pieza, en la caja, en la
+   respuesta y en el landing. Hace de bandera, que Windows no pinta. */
+@utility country-code {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	height: calc(var(--spacing) * 5);
+	min-width: calc(var(--spacing) * 6);
+	padding-inline: calc(var(--spacing) * 1.5);
+	border-radius: calc(infinity* 1px);
+	background-color: var(--fill);
+	color: var(--text);
+	font-family: var(--font-mono);
+	font-size: var(--text-label);
+	line-height: 1;
+	font-weight: 500;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+/* El hueco de una palabra que se turna dentro de una frase: el país de la
+   entradilla de la portada, uno cada vez, con lo de alrededor quieto. Sus
+   hijos son las palabras; solo la que lleva `data-current` ocupa sitio, así
+   que el hueco mide lo que ella, y las demás quedan encima, sin ocuparlo.
+
+   El cambio va en tres tiempos de `--transition-duration-base`
+   (DESIGN.md › Movimiento): la que sale se funde; el hueco pasa de su ancho al
+   de la que entra, sin ninguna a la vista, y lo de alrededor se desliza con él
+   (eso lo anima `glide` de `lib/rotating.ts`, porque CSS no transiciona de un
+   `auto` a otro); y la que entra aparece. Las ocultas quedan con
+   `visibility: hidden`, que también las saca del lector de pantalla y del
+   foco; cambia de golpe al final de su tiempo (`step-end`), así que la que
+   sale se ve mientras se funde y la que entra aparece justo al empezar. */
+@utility rotating-text {
+	position: relative;
+	display: inline-block;
+	white-space: nowrap;
+	& > * {
+		position: absolute;
+		inset-block-start: 0;
+		inset-inline-start: 0;
+		opacity: 0;
+		visibility: hidden;
+		filter: blur(var(--blur-fade));
+		transition:
+			opacity var(--transition-duration-base) var(--ease-in),
+			filter var(--transition-duration-base) var(--ease-in),
+			visibility var(--transition-duration-base) step-end;
+	}
+	& > [data-current] {
+		position: relative;
+		opacity: 1;
+		visibility: visible;
+		filter: none;
+		transition:
+			opacity var(--transition-duration-base) var(--ease-out)
+				calc(var(--transition-duration-base) * 2),
+			filter var(--transition-duration-base) var(--ease-out)
+				calc(var(--transition-duration-base) * 2),
+			visibility calc(var(--transition-duration-base) * 2) step-end;
+	}
+}

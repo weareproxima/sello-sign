@@ -1,0 +1,78 @@
+{
+	"country": "SV",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "dte",
+			"content_type": "application/json",
+			"input": "dte.in.json",
+			"output": "dte.out.jws",
+			"document_id": "B3B1C7D0-1234-4E56-9ABC-1234567890AB",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "dte-pretty",
+			"note": "JSON.stringify(JSON.parse(body)) compacts it",
+			"content_type": "application/json",
+			"input": "dte-pretty.in.json",
+			"output": "dte-pretty.out.jws",
+			"document_id": "B3B1C7D0-1234-4E56-9ABC-1234567890AB",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "dte-xml",
+			"note": "an XML body is signed as is, without typ in the header and with a random document id",
+			"content_type": "application/xml",
+			"input": "dte-xml.in.xml",
+			"output": "dte-xml.out.jws",
+			"document_id": "B8A4E741-CAAC-4E25-97D2-6806015780F6",
+			"document_type": null,
+			"self_verified": true,
+			"random": "b8a4e741caac1e25d7d26806015780f6",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "b8a4e741-caac-4e25-97d2-6806015780f6"
+				}
+			]
+		},
+		{
+			"name": "json-edge",
+			"note": "index-like keys first, duplicate keys, string escapes and JS number formatting",
+			"content_type": "application/json",
+			"input": "json-edge.in.json",
+			"output": "json-edge.out.jws",
+			"document_id": "0F1E2D3C-4B5A-4987-8654-3210FEDCBA98",
+			"document_type": "03",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "no-id",
+			"note": "codigoGeneracion is not a string: the document id is crypto.randomUUID().toUpperCase()",
+			"content_type": "application/json",
+			"input": "no-id.in.json",
+			"output": "no-id.out.jws",
+			"document_id": "51DD1E3A-F8F4-40F9-866C-308BB5544173",
+			"document_type": "01",
+			"self_verified": true,
+			"random": "51dd1e3af8f460f9866c308bb5544173",
+			"random_calls": [
+				{
+					"fn": "randomUUID",
+					"result": "51dd1e3a-f8f4-40f9-866c-308bb5544173"
+				}
+			]
+		}
+	]
+}

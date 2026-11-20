@@ -1,0 +1,87 @@
+{
+	"country": "BR",
+	"generated_by": "tools/vectors/gen.ts",
+	"now": "2026-11-19T15:04:05.123Z",
+	"key": "../../key.pem",
+	"certificate": "../../cert.pem",
+	"cases": [
+		{
+			"name": "nfe",
+			"content_type": "application/xml",
+			"input": "nfe.in.xml",
+			"output": "nfe.out.xml",
+			"document_id": "35260112345678000199550010000000011000000017",
+			"document_type": "55",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "nfce",
+			"content_type": "application/xml",
+			"input": "nfce.in.xml",
+			"output": "nfce.out.xml",
+			"document_id": "35260112345678000199650010000000021000000024",
+			"document_type": "65",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "dps",
+			"content_type": "application/xml",
+			"input": "dps.in.xml",
+			"output": "dps.out.xml",
+			"document_id": "3550308123456780001991000000000000001",
+			"document_type": "DPS",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "evento",
+			"content_type": "application/xml",
+			"input": "evento.in.xml",
+			"output": "evento.out.xml",
+			"document_id": "1101113526011234567800019955001000000001100000001701",
+			"document_type": "evento",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "edge",
+			"content_type": "application/xml",
+			"input": "edge.in.xml",
+			"output": "edge.out.xml",
+			"document_id": "35260112345678000199550010000000011000000017",
+			"document_type": "55",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "root-xsi",
+			"content_type": "application/xml",
+			"input": "root-xsi.in.xml",
+			"output": "root-xsi.out.xml",
+			"document_id": "35260112345678000199550010000000011000000017",
+			"document_type": "55",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		},
+		{
+			"name": "cr-in-text",
+			"note": "known TS bug: xmldom writes the carriage return raw, a verifier reads a line feed",
+			"content_type": "application/xml",
+			"input": "cr-in-text.in.xml",
+			"output": "cr-in-text.out.xml",
+			"document_id": "35260112345678000199550010000000011000000017",
+			"document_type": "55",
+			"self_verified": true,
+			"random": "",
+			"random_calls": []
+		}
+	]
+}
