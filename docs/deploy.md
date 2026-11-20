@@ -5,11 +5,11 @@ el API en el VPS con Dokploy (un contenedor) y una sola base en Neon. Una
 instalación propia usa las mismas piezas como quiera (el panel también corre
 en Node: `bun run build` y `bun run start`).
 
-| Pieza | Dónde                                                                             | Qué se publica                                                                             |
-| ----- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Base  | Neon, base `sign`                                                                 | `public`, del API (sus migraciones, al arrancar); `auth`, del panel (`bun run db:migrate`) |
-| API   | Dokploy, `api.sign.sello.tax`                                                     | `apps/api/compose.dokploy.yml`: el API (`apps/api/Containerfile`) y su Valkey              |
-| Panel | Cloudflare Workers, `sello-sign-panel`, en `sign.sello.tax` (desde el 2026-11-19) | `apps/panel` con `bun run deploy` (`wrangler.jsonc`)                                       |
+| Pieza | Dónde                                                                             | Qué se publica                                                                                        |
+| ----- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Base  | Neon, base `sign`                                                                 | `public`, del API (sus migraciones, al arrancar); `auth`, del panel (`bun run db:migrate`)            |
+| API   | Dokploy, `api.sign.sello.tax`                                                     | `apps/api/compose.dokploy.yml`: el API (`apps/api/Containerfile`) y su Valkey, con cada push a `main` |
+| Panel | Cloudflare Workers, `sello-sign-panel`, en `sign.sello.tax` (desde el 2026-11-19) | `apps/panel`, con Workers Builds en cada push a `main` («Cada cambio»; `wrangler.jsonc`)              |
 
 ## Lo que decide el dueño antes
 
@@ -120,7 +120,8 @@ conexión.
    antes solo adelanta un error.
 
 3. Las del panel, desde `apps/panel` (la variable del shell gana sobre
-   `.env`; imprime el host y la base antes de tocarla):
+   `.env`; imprime el host y la base antes de tocarla). Después de la
+   primera vez las aplica el build de cada push («Cada cambio»):
 
    ```sh
    DATABASE_URL='<cadena directa>' bun run db:migrate
@@ -138,6 +139,7 @@ conexión.
    `SIGN_PLATFORM_WORKSPACE_ID=pending` (el API arranca y lo avisa en sus
    logs).
 4. Deploy, y `curl -s https://api.sign.sello.tax/health` → `{"status":"ok"}`.
+   Después, cada push a `main` lo vuelve a desplegar solo (_autoDeploy_).
 
 **El espacio de la plataforma y sus claves**, con la consola del API dentro
 del contenedor (lee su mismo entorno: ningún secreto sale del servidor), en el
@@ -273,10 +275,49 @@ todavía no está ahí) ni después (describiría un API que ya no responde).
       él, el enlace del plan elegido llevaría a «Plan y facturación», pero el
       cobro no sabría de Sign.
 
+## Cada cambio
+
+Desde el 2026-11-20 un push a `main` publica solo lo que cambió:
+
+- **El panel**, con **Workers Builds** (Cloudflare, cuenta de `sello.tax`): el
+  disparador de `sello-sign-panel`, en la rama `main` y sin _previews_, con el
+  repositorio `weareproxima/sello-sign` y el directorio `apps/panel`, corre
+
+  ```sh
+  (cd ../.. && bun install --frozen-lockfile) && bun run build:cloudflare           # build
+  DATABASE_URL="$MIGRATION_DATABASE_URL" bun run db:migrate && bunx wrangler deploy  # deploy
+  ```
+
+  con `BUN_VERSION=1.4.2`, `SKIP_DEPENDENCY_INSTALL=1` y
+  `MIGRATION_DATABASE_URL`, una variable cifrada del build: la cadena
+  **directa** de la base `sign` (no la de `-pooler`, que es el secreto
+  `DATABASE_URL` del Worker). Solo cuando el push toca `apps/panel/*`,
+  `bun.lock` o el `package.json` de la raíz. La
+  migración corre solo si el build pasó, y el Worker solo si la migración
+  pasó; sin cambios en el esquema dice «auth: nothing to migrate». El
+  resultado sale como un _check_ del commit en GitHub, y un build roto deja
+  publicada la versión anterior. Los secretos del Worker (paso 3) no los toca.
+  Si la contraseña de la base cambia, se cambia también esa variable
+  (_Settings › Builds › Variables and secrets_ del Worker). A mano, como
+  respaldo, `bun run deploy` desde `apps/panel` con una sesión de wrangler,
+  después de `DATABASE_URL='<cadena directa>' bun run db:migrate`.
+
+- **El API**, con el servicio Compose «Sign API» de Dokploy, que se despliega
+  con cada push a `main` (_autoDeploy_, sin filtro de rutas) y migra al
+  arrancar.
+
+Fusionar es publicar: un cambio que el panel y el API necesitan en orden (el
+API primero, si el panel llama a algo nuevo) va en dos commits, empujados uno
+tras otro.
+
+El Worker viejo, `sello-sign` (`../sign-old`), conserva su configuración de
+Workers Builds, atada al repositorio de antes: este repositorio no lo publica.
+
 ## Volver atrás
 
 - **Panel:** `bunx wrangler rollback` desde `apps/panel` vuelve a la versión
-  anterior. Si había reemplazado a `sign.sello.tax`: se quitan sus `routes` (o
+  anterior, hasta el siguiente push que toque el panel: lo que se deshace,
+  también se revierte en `main`. Si había reemplazado a `sign.sello.tax`: se quitan sus `routes` (o
   el Custom Domain en el panel de Cloudflare) y se devuelve el dominio a
   `sello-sign`, que sigue publicado tal como estaba; en el IdP, se restituye
   `TRUSTED_CLIENTS`.

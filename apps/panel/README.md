@@ -39,7 +39,8 @@ El API (`apps/api`) tiene que tener `PANEL_URL` igual a `BETTER_AUTH_URL` y
 
 `bun run build:cloudflare` construye para Workers (`wrangler.jsonc`),
 `bun run preview:cloudflare` lo corre en workerd en `127.0.0.1:4442` (con
-`.dev.vars`, copia de `.dev.vars.example`) y `bun run deploy` lo publica. Ahí
+`.dev.vars`, copia de `.dev.vars.example`) y `bun run deploy` lo publica (en
+la nube de Sello, lo hace Workers Builds con cada push a `main`). Ahí
 cada petición abre su propia conexión a la base (`src/lib/database.ts`): un
 socket de una petición no sirve a otra. Las variables, el orden y cómo volver
 atrás, en [`docs/deploy.md`](../../docs/deploy.md).
