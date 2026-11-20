@@ -15,10 +15,11 @@ import {
 	type EmailChangeResult,
 } from '#/lib/account-email-change'
 import { createApi } from '#/lib/api'
-import { getAuth } from '#/lib/auth'
+import { getAuth, getDatabase } from '#/lib/auth'
 import { readConfig } from '#/lib/config'
 import { sendEmail } from '#/lib/email'
 import { serverEnv } from '#/lib/env'
+import { postgresPasswordAttempts } from '#/lib/password-attempts'
 
 /**
  * Deletes the signed-in person's account (self-hosted; `lib/account-deletion.ts`):
@@ -46,6 +47,7 @@ export const deleteAccount = createServerFn({ method: 'POST' })
 			password: data.password,
 			verifyPassword: (password) =>
 				context.password.verify({ hash: hash!, password }),
+			attempts: postgresPasswordAttempts(getDatabase(), session.user.id),
 			sessionStartedAt: new Date(session.session.createdAt).getTime(),
 			now: Date.now(),
 			api: createApi({
@@ -61,6 +63,14 @@ export const deleteAccount = createServerFn({ method: 'POST' })
 		if (result.ok)
 			console.info(
 				JSON.stringify({ msg: 'Account deleted', userId: session.user.id })
+			)
+		else if (result.reason === 'too-many-attempts')
+			console.warn(
+				JSON.stringify({
+					msg: 'Password attempts exhausted',
+					action: 'delete-account',
+					userId: session.user.id,
+				})
 			)
 		return result
 	})
@@ -96,6 +106,7 @@ export const requestEmailChange = createServerFn({ method: 'POST' })
 			hasPassword: hash !== null,
 			verifyPassword: (password) =>
 				context.password.verify({ hash: hash!, password }),
+			attempts: postgresPasswordAttempts(getDatabase(), session.user.id),
 			requestChange: async (email) => {
 				try {
 					await auth.api.changeEmail({
@@ -135,6 +146,14 @@ export const requestEmailChange = createServerFn({ method: 'POST' })
 			console.info(
 				JSON.stringify({
 					msg: 'E-mail change requested',
+					userId: session.user.id,
+				})
+			)
+		else if (result.reason === 'too-many-attempts')
+			console.warn(
+				JSON.stringify({
+					msg: 'Password attempts exhausted',
+					action: 'change-email',
 					userId: session.user.id,
 				})
 			)

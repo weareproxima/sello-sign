@@ -11,7 +11,7 @@ el token con el que el panel llama al API. El estado y lo que falta, en
 ```bash
 podman compose up -d          # en la raíz: Postgres en 127.0.0.1:5434
 cp .env.example .env          # y BETTER_AUTH_SECRET (openssl rand -base64 32)
-bun run db:migrate            # las tablas de better-auth, en el esquema `auth`
+bun run db:migrate            # better-auth y password_attempt, en el esquema `auth`
 bun run dev                   # http://127.0.0.1:4440
 ```
 
@@ -43,7 +43,9 @@ correos de la cuenta está en `src/lib/account-email.ts`.
 
 ## Comprobaciones
 
-`bun run typecheck`, `bun run test` (vitest), `bun run lint:design` y
+`bun run typecheck`, `bun run test` (vitest; con
+`POSTGRES_TEST_URL=postgres://sign:sign@127.0.0.1:5434/sign`, también la
+tabla de los intentos de contraseña), `bun run lint:design` y
 `bun run build`. `lint:design` (`scripts/lint-design.ts`) aplica las reglas de
 `../sello/DESIGN.md` que se leen en el código (ni tamaños, colores, radios,
 sombras, duraciones ni opacidades fuera de los tokens, ni alias de shadcn, ni
@@ -65,7 +67,16 @@ atrás, en [`docs/deploy.md`](../../docs/deploy.md).
 - `src/lib/config.ts`: las variables, sin secretos para las páginas (que
   sí reciben `API_URL`: el origen público del API, donde está su servidor
   MCP).
-- `src/lib/auth-options.ts` y `src/lib/auth.ts`: better-auth; `scripts/migrate.ts`.
+- `src/lib/auth-options.ts` y `src/lib/auth.ts`: better-auth; `scripts/migrate.ts`
+  (sus tablas y la del panel, `auth.password_attempt`).
+- `src/lib/password-attempts.ts`: el límite de intentos con la contraseña
+  donde la comprueba el servidor del panel (cambiar el correo, borrar la
+  cuenta): 5 fallos por cuenta en 15 minutos, contados en
+  `auth.password_attempt` (no en memoria: en Workers cada petición puede caer
+  en otro _isolate_). Su prueba usa Postgres con `POSTGRES_TEST_URL`.
+- `src/lib/audit.ts`: «Actividad» (`_app.w.$workspaceId.activity.tsx`), la
+  bitácora de auditoría del espacio en español; su prueba compara las
+  acciones con las de `apps/api/internal/audit/audit.go`.
 - `src/lib/api.ts`: el cliente del contrato (`contracts/`), con los errores
   dichos con los moldes de Sello.
 - `src/lib/limits.ts`: los límites del plan como los aplica el API (el tope

@@ -197,6 +197,54 @@ export type SignatureEntry = {
 	created_at: string
 }
 
+/** What an event of the audit log is about (contracts/openapi.yaml). */
+export const AUDIT_TARGET_TYPES = [
+	'workspace',
+	'member',
+	'invitation',
+	'organization',
+	'certificate',
+	'delegation',
+	'api_key',
+] as const
+export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number]
+
+/** Who acted: a person, a key, Sello's billing, the server's console,
+ * another space or the API itself. */
+export type AuditActorType =
+	'user' | 'api_key' | 'billing' | 'console' | 'workspace' | 'system'
+
+/** An event of the space's audit log, «Actividad». `action` is
+ * `<target>.<verb>` (`lib/audit.ts` words each one). */
+export type AuditEvent = {
+	id: string
+	action: string
+	actor: {
+		type: AuditActorType
+		/** The person's `user_id`, the key's id or the space's id. */
+		id: string | null
+		email: string | null
+		name: string | null
+		/** `mcp`: a key, through the MCP server. */
+		via: 'mcp' | null
+	}
+	target: { type: AuditTargetType; id: string | null; label: string }
+	details: Record<string, unknown>
+	created_at: string
+}
+
+export type AuditFilters = {
+	action?: string
+	target_type?: AuditTargetType
+	target_id?: string
+	actor_type?: AuditActorType
+	actor_id?: string
+	from?: string
+	to?: string
+	limit?: number
+	cursor?: string
+}
+
 export type Page<T> = { items: T[]; next_cursor: string | null }
 
 /** `POST /verifications`: the document comes back as text. */
@@ -625,6 +673,12 @@ export function createApi(transport: Transport) {
 			request<SignatureEntry>(
 				`${w(workspace)}/signatures/${encodeURIComponent(id)}`
 			),
+
+		/** The space's audit log, newest first (owners and admins). */
+		auditEvents: (workspace: string, filters: AuditFilters) =>
+			request<Page<AuditEvent>>(`${w(workspace)}/audit-events`, {
+				query: filters,
+			}),
 	}
 }
 

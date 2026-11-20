@@ -16,6 +16,11 @@
 
 import { ApiError, type Api, type Problem } from './api'
 import type { PanelConfig } from './config'
+import {
+	checkPassword,
+	passwordAttemptsMessage,
+	type PasswordAttempts,
+} from './password-attempts'
 
 /** Whether this install lets a person delete their own account. */
 export function accountDeletable(config: Pick<PanelConfig, 'cloud' | 'oidc'>) {
@@ -34,11 +39,14 @@ export type DeleteAccountResult =
 				| 'unauthorized'
 				| 'disabled'
 				| 'invalid-password'
+				| 'too-many-attempts'
 				| 'session-expired'
 				| 'blocked'
 				| 'api'
 			status?: number
 			problem?: Problem | null
+			/** With `too-many-attempts`: when to try again. */
+			retryAt?: string
 	  }
 
 export async function deleteAccountFlow(deps: {
@@ -47,6 +55,8 @@ export async function deleteAccountFlow(deps: {
 	hasPassword: boolean
 	password: string | null
 	verifyPassword: (password: string) => Promise<boolean>
+	/** The account's attempts at its password (`lib/password-attempts.ts`). */
+	attempts: PasswordAttempts
 	/** When its session started, and now, in milliseconds. */
 	sessionStartedAt: number
 	now: number
@@ -56,8 +66,12 @@ export async function deleteAccountFlow(deps: {
 }): Promise<DeleteAccountResult> {
 	if (!deps.deletable) return { ok: false, reason: 'disabled' }
 	if (deps.hasPassword) {
-		if (!deps.password || !(await deps.verifyPassword(deps.password)))
-			return { ok: false, reason: 'invalid-password' }
+		const check = await checkPassword(
+			deps.password,
+			deps.verifyPassword,
+			deps.attempts
+		)
+		if (!check.ok) return check
 	} else if (deps.now - deps.sessionStartedAt > FRESH_SESSION_MS) {
 		return { ok: false, reason: 'session-expired' }
 	}
@@ -97,6 +111,8 @@ export function deleteAccountMessage(
 	switch (result.reason) {
 		case 'invalid-password':
 			return 'La contraseña no es correcta.'
+		case 'too-many-attempts':
+			return passwordAttemptsMessage(result.retryAt)
 		case 'session-expired':
 			return 'Por seguridad, vuelva a iniciar sesión y vuelva a intentarlo.'
 		case 'blocked':

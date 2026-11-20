@@ -31,6 +31,10 @@ describe('deleteAccountFlow', () => {
 		hasPassword: true,
 		password: 'secreto123',
 		verifyPassword: vi.fn(async (p: string) => p === 'secreto123'),
+		attempts: {
+			take: vi.fn(async () => ({ ok: true as const })),
+			clear: vi.fn(async () => {}),
+		},
 		sessionStartedAt: 0,
 		now: 0,
 		api: { deleteMe: vi.fn(async () => {}) },
@@ -48,6 +52,31 @@ describe('deleteAccountFlow', () => {
 		})
 		expect(await deleteAccountFlow(deps)).toEqual({ ok: true })
 		expect(order).toEqual(['api', 'user'])
+	})
+
+	it('stops at the limit of attempts, touching nothing', async () => {
+		const retryAt = new Date('2026-11-20T15:42:00Z')
+		const deps = {
+			...base(),
+			attempts: {
+				take: vi.fn(async () => ({ ok: false as const, retryAt })),
+				clear: vi.fn(async () => {}),
+			},
+		}
+		expect(await deleteAccountFlow(deps)).toEqual({
+			ok: false,
+			reason: 'too-many-attempts',
+			retryAt: retryAt.toISOString(),
+		})
+		expect(deps.verifyPassword).not.toHaveBeenCalled()
+		expect(deps.api.deleteMe).not.toHaveBeenCalled()
+		expect(deps.deleteUser).not.toHaveBeenCalled()
+	})
+
+	it('takes no attempt without a password to check', async () => {
+		const deps = { ...base(), hasPassword: false, password: null }
+		expect(await deleteAccountFlow(deps)).toEqual({ ok: true })
+		expect(deps.attempts.take).not.toHaveBeenCalled()
 	})
 
 	it('touches nothing with a wrong password', async () => {

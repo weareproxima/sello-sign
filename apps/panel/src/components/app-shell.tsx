@@ -11,6 +11,7 @@ import {
 	CheckIcon,
 	ChevronsUpDownIcon,
 	FileSignatureIcon,
+	HistoryIcon,
 	KeyRoundIcon,
 	LayoutDashboardIcon,
 	LogOutIcon,
@@ -52,6 +53,7 @@ type NavItem = {
 		| '/w/$workspaceId/api-keys'
 		| '/w/$workspaceId/settings'
 		| '/w/$workspaceId/members'
+		| '/w/$workspaceId/activity'
 		| '/w/$workspaceId/verify'
 	label: string
 	icon: React.ComponentType<{ className?: string }>
@@ -89,7 +91,14 @@ const SPACE: NavItem[] = [
 		icon: KeyRoundIcon,
 	},
 	{ to: '/w/$workspaceId/members', label: 'Miembros', icon: UsersIcon },
+	{ to: '/w/$workspaceId/activity', label: 'Actividad', icon: HistoryIcon },
 	{ to: '/w/$workspaceId/settings', label: 'General', icon: SettingsIcon },
+]
+
+/** What only those who administer the space see in its column. */
+const MANAGERS_ONLY: NavItem['to'][] = [
+	'/w/$workspaceId/api-keys',
+	'/w/$workspaceId/activity',
 ]
 
 /** A row of the column: 36 px (48 on touch), `selected` where one is. */
@@ -133,7 +142,7 @@ function Nav({
 				<ul className="flex flex-col gap-0.5">
 					{(canManage
 						? SPACE
-						: SPACE.filter((e) => e.to !== '/w/$workspaceId/api-keys')
+						: SPACE.filter((e) => !MANAGERS_ONLY.includes(e.to))
 					).map(item)}
 				</ul>
 			</div>

@@ -23,22 +23,24 @@ function createAuth() {
 	if (!config.databaseUrl) throw new Error('DATABASE_URL is not set')
 	if (!config.secret && workers)
 		throw new Error('BETTER_AUTH_SECRET is not set')
+	const database = new Database(config.databaseUrl, { perRequest: workers })
 	const options = authOptions({
 		config,
-		database: new Database(config.databaseUrl, { perRequest: workers }),
+		database,
 		// Resend with RESEND_API_KEY and EMAIL_FROM; without the key, the
 		// server's console (`lib/email.ts`).
 		sendEmail: (message) => deliverEmail(message, config.email),
 	})
-	return betterAuth({
+	const auth = betterAuth({
 		...options,
 		plugins: [...options.plugins, tanstackStartCookies()],
 	})
+	return { auth, database }
 }
 
-type Auth = ReturnType<typeof createAuth>
+type Auth = ReturnType<typeof createAuth>['auth']
 
-let instance: Auth | null = null
+let instance: ReturnType<typeof createAuth> | null = null
 
 /**
  * Built on first use, from the environment of that moment (on Workers it
@@ -48,5 +50,12 @@ let instance: Auth | null = null
  */
 export function getAuth(): Auth {
 	instance ??= createAuth()
-	return instance
+	return instance.auth
+}
+
+/** better-auth's database, for the panel's own tables in `auth`
+ * (`lib/password-attempts.ts`). */
+export function getDatabase(): Database {
+	instance ??= createAuth()
+	return instance.database
 }

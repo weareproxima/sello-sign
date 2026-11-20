@@ -7,6 +7,12 @@ import {
 } from './account-email-change'
 import { changeEmailEmail, emailChangeNoticeEmail } from './account-email'
 
+/** Attempts that are never exhausted. */
+const openAttempts = () => ({
+	take: vi.fn(async () => ({ ok: true as const })),
+	clear: vi.fn(async () => {}),
+})
+
 const oidc = (only: boolean) => ({
 	providerId: 'oidc',
 	name: 'SSO',
@@ -35,8 +41,43 @@ describe('emailChangeFlow', () => {
 		linkedToProvider: false,
 		hasPassword: true,
 		verifyPassword: vi.fn(async (p: string) => p === 'secreto123'),
+		attempts: openAttempts(),
 		requestChange: vi.fn(async (_email: string) => {}),
 		notifyCurrent: vi.fn(async (_email: string) => {}),
+	})
+
+	it('stops at the limit of attempts, without checking the password', async () => {
+		const retryAt = new Date('2026-11-20T15:42:00Z')
+		const deps = {
+			...base(),
+			attempts: {
+				take: vi.fn(async () => ({ ok: false as const, retryAt })),
+				clear: vi.fn(async () => {}),
+			},
+		}
+		expect(await emailChangeFlow(deps)).toEqual({
+			ok: false,
+			reason: 'too-many-attempts',
+			retryAt: retryAt.toISOString(),
+		})
+		expect(deps.verifyPassword).not.toHaveBeenCalled()
+		expect(deps.requestChange).not.toHaveBeenCalled()
+	})
+
+	it('counts a wrong password, and forgets the failures with the right one', async () => {
+		const wrong = { ...base(), password: 'otra' }
+		expect(await emailChangeFlow(wrong)).toMatchObject({
+			reason: 'invalid-password',
+		})
+		expect(wrong.attempts.take).toHaveBeenCalledTimes(1)
+		expect(wrong.attempts.clear).not.toHaveBeenCalled()
+		const right = base()
+		expect(await emailChangeFlow(right)).toMatchObject({ ok: true })
+		expect(right.attempts.clear).toHaveBeenCalledTimes(1)
+		// An invalid address isn't an attempt at the password.
+		const invalid = { ...base(), newEmail: 'no' }
+		await emailChangeFlow(invalid)
+		expect(invalid.attempts.take).not.toHaveBeenCalled()
 	})
 
 	it('checks the password, sends the link, then tells the current address', async () => {

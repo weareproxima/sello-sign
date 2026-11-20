@@ -53,9 +53,13 @@ encuentro: se extienden sin romper a quien los usa.
 - El servidor MCP (las herramientas de `../sign-old/docs/api.md`): hecho en
   el API y, cómo conectarlo con una clave, en el panel el 2026-11-20 («API»
   y «Panel»). Falta que el landing de Sello lo cuente.
-- Los avisos y las tareas programadas: certificados por vencer, el uso del
-  plan, el reporte de uso a billing cada hora.
-- La bitácora de auditoría. (Las invitaciones por correo, el cambio de rol
+- Los avisos y las tareas programadas: hechos en el API el 2026-11-20
+  («API», «Los avisos»): los certificados por vencer y el uso del plan, por
+  correo cada hora; el reporte de uso a billing cada hora ya estaba
+  (`billing.RunReporter`).
+- La bitácora de auditoría: hecha en el API y en el panel («Actividad») el
+  2026-11-20 («API», «La bitácora de auditoría», y «Panel»). (Las
+  invitaciones por correo, el cambio de rol
   de los miembros, quitarlos y salir de un espacio, reenviar una invitación,
   verificar una firma por el API desde el panel, exportar los datos de un
   espacio y borrar la cuenta en una instalación propia, hechos el
@@ -468,6 +472,48 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   `planPageUrl`). Lo usan firmar de prueba, verificar (el API no limita
   `POST /verifications` hoy: queda por si lo hace), crear una organización
   y traer las de Sello.
+- **Actividad** (2026-11-20, `/w/<id>/activity`, en la columna del espacio
+  entre «Miembros» y «General», solo para quien lo administra; a un
+  `member` que llega por la dirección se lo dice, sin llamar al API): la
+  bitácora de auditoría del espacio (`GET /workspaces/{w}/audit-events`), del
+  cambio más nuevo al más antiguo, de a 50 con «Cargar más». Cada fila dice
+  qué pasó en una frase cuyo sujeto es quien lo hizo («Subió un certificado
+  de prueba a «Empresa»», «Delegó «Empresa» a «Otro»» o, en el espacio que la
+  recibe, «… a este espacio»), con lo que cambió debajo («Nombre: «A» →
+  «B»»); quién (la persona con su correo, «Clave «…»» con «Por el API» o
+  «Por el servidor MCP», «Espacio «…»», «Sello», «Consola del servidor») y
+  cuándo (`es-419`). Filtros: qué (el espacio, miembros, invitaciones,
+  organizaciones, certificados, delegaciones, claves), quién (cada miembro,
+  las claves, otros espacios, Sello, la consola) y las fechas, en la
+  dirección (`?type=`, `?actor=`, `?from=`, `?to=`). Una fila abre «Detalle
+  del cambio» (`?event=`), con el objeto y su id, cada cambio y los datos del
+  evento. Las frases están en `lib/audit.ts`, y `lib/audit.test.ts` compara
+  sus acciones con las de `apps/api/internal/audit/audit.go`: una acción
+  nueva en el API rompe esa prueba hasta que el panel la diga.
+- **El límite de intentos con la contraseña** (2026-11-20,
+  `lib/password-attempts.ts`): cambiar el correo y borrar la cuenta, que
+  comprueban la contraseña en el servidor del panel (y no por una ruta de
+  better-auth, cuyo límite no los cubre), admiten 5 intentos fallidos por
+  cuenta en una ventana de 15 minutos que empieza en el primero; después, la
+  contraseña no se comprueba (tampoco la buena) hasta que la ventana
+  termina, y la página dice «Alcanzó el límite de intentos con la
+  contraseña. Vuelva a intentarlo después de las 09:57 a.m.», con la hora de
+  quien la lee. Los dos comparten la cuenta de intentos. Vive en la base del
+  panel, no en la memoria del proceso (en Workers cada petición puede caer
+  en otro _isolate_): la tabla `auth.password_attempt`, que crea
+  `bun run db:migrate` junto a las de better-auth, con una fila por cuenta
+  que falló (su id, cuántos fallos y cuándo empezó la ventana; nunca la
+  contraseña ni la dirección), que se borra con la contraseña correcta, con
+  la cuenta (`on delete cascade`) o, terminada su ventana, en la siguiente
+  comprobación de cualquiera. El intento se toma antes de comprobar la
+  contraseña, en una sola sentencia (`insert … on conflict … where`), así que
+  peticiones a la vez no pasan del límite; una contraseña vacía no gasta
+  ninguno. Un bloqueo se escribe en el log del servidor (la cuenta y la
+  acción). Probado: la lógica y los dos flujos (`password-attempts.test.ts`,
+  `account-email-change.test.ts`, `account-deletion.test.ts`) y, con
+  `POSTGRES_TEST_URL`, la tabla misma (cinco y no seis, la ventana que
+  termina, la contraseña correcta que lo borra, doce intentos a la vez que
+  dejan pasar cinco, las ventanas viejas, la cuenta borrada).
 - **En el móvil**, las tablas largas (registro de firmas, organizaciones,
   certificados, delegaciones, claves y la actividad del resumen) son una
   tarjeta por fila (`src/styles/cards.css` y `TableCards`, con `data-label`
@@ -524,6 +570,17 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   abre el otro espacio), exportar desde el diálogo, borrar el último
   (vuelve a «Crear un espacio») y borrar la cuenta desde `/account` sin
   espacios; de día, de noche, a 390 y a 360 px.
+  La bitácora y el límite de intentos (2026-11-20), con el panel en
+  `vite dev` en el `:4456` y un API en el `:4454` contra su propia base:
+  veinte cambios hechos por el proxy del panel (crear y cambiar el espacio,
+  una organización, certificados de El Salvador de `devcert`, claves, una
+  revocada por el servidor MCP, invitaciones, un rol, una delegación a otro
+  espacio y su renuncia, exportar), y «Actividad» con sus frases, el detalle,
+  los filtros de qué y quién, de día, de noche y a 360 px (sin
+  desplazamiento lateral; cada fila una tarjeta). En «Su cuenta», cambiar el
+  correo con otra contraseña seis veces: cinco «La contraseña no es
+  correcta.» y la sexta el límite, que también detiene la contraseña buena;
+  la fila de `auth.password_attempt` con sus cinco fallos.
 - **Sin probar:** El Salvador (su firmador todavía no estaba en el API:
   `country-not-implemented`), el OIDC contra un proveedor real, la nube
   (`/me/sello-organizations`, abrir el espacio de una organización de Sello y
@@ -540,7 +597,11 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   «Su cuenta» con `CLOUD` u `OIDC_ONLY` y una cuenta enlazada al proveedor
   (solo el typecheck y las pruebas de `account-email-change.ts`), el correo
   de verificación por Resend y el bloque de un espacio de una organización
-  de Sello.
+  de Sello. De la bitácora, en un navegador: la vista de un `member` (solo
+  el código y el `403` del API), la de la nube (el plan, una organización
+  traída o devuelta; solo sus pruebas del API) y «Cargar más» con más de 50
+  cambios; del límite, borrar la cuenta (solo sus pruebas: es la misma
+  comprobación).
 - **Falta:** lo que queda en «Fase 2».
 
 Cómo se levanta y sus variables, en `apps/panel/README.md` y
@@ -576,21 +637,26 @@ con las del contrato).
   de uso cada hora, con un _advisory lock_ para que lo haga una instancia),
   `internal/ratelimit` (las firmas por minuto, en Valkey o en memoria),
   `internal/retention` (borrar cada hora lo vencido del registro, con otro
-  _advisory lock_) e `internal/httpapi` (las rutas, quién puede cada una, los
+  _advisory lock_), `internal/notices` (los avisos por correo de cada hora,
+  con otro), `internal/mail` (el correo: Resend o el log), `internal/audit`
+  (el vocabulario de la bitácora de auditoría, sin E/S) e `internal/httpapi` (las rutas, quién puede cada una, los
   errores, los límites al firmar y el `Signer`, que abre el material y llama
   al país).
 - **El modelo:** tablas `workspaces`, `workspace_members` (por el `sub` del
   panel), `billing_members` (en la nube, los asientos que empuja billing, por
   el `sub` de Sello: son miembros los primeros `max_members` en el orden de
   billing, sin copiarlos a `workspace_members`), `users` (quién es cada `sub`,
-  según su último token, para nombrar a los miembros), `organizations`,
+  según su último token, para nombrar a los miembros y escribirles los
+  avisos), `organizations`,
   `certificates`, `delegations`, `api_keys`, `signing_log` (sin el documento,
   y sin llave foránea a la organización: sobrevive a su borrado),
   `invitations` (migración `0002`; abajo),
   `usage_counters` (por espacio que firma, organización, ambiente y mes) y
   `workspace_usage` (su suma por espacio, ambiente y mes, en una fila que se
   lee en cada firma; la lleva un _trigger_ de `usage_counters`, así que no se
-  aparta de lo que se reporta a billing).
+  aparta de lo que se reporta a billing), `certificate_notices` y
+  `usage_notices` (migración `0004`: los avisos que ya salieron; abajo) y
+  `audit_events` (migración `0005`: la bitácora de auditoría; abajo).
 - **Los límites** (desde el 2026-11-20, migración `0003`; la semántica, en
   `../sello/apps/api/internal/billing/domain/sign.go`): se aplican al firmar,
   en el espacio que firma, también con una organización delegada
@@ -751,6 +817,177 @@ con las del contrato).
   contó. Una tarea la borra cada hora, en lotes de 5000 y bajo un _advisory
   lock_, por el id (UUIDv7, ordenado por tiempo), con el índice que ya existía.
   Lo contado en `usage_counters` se queda: se cobra.
+- **Los avisos** (desde el 2026-11-20, migración `0004`;
+  `internal/notices`, con el correo en `internal/mail`): el API escribe por
+  su cuenta, igual en la nube que en una instalación propia, lo que un
+  espacio tiene que atender antes de que deje de firmar. Una tarea, un minuto
+  después de arrancar y luego cada hora, bajo su propio _advisory lock_
+  (`0x5e110_516e`), como la retención. Decidido al hacerlo:
+  - **Los certificados:** cada certificado activo de una organización, 30, 7
+    y 1 días antes de su `not_after`, y una vez si venció y sigue activo
+    (`notices.CertificateThreshold`). Solo el umbral más urgente que toque, y
+    nunca uno menos urgente después (uno subido 5 días antes de vencer recibe
+    solo el de 7), como el bucle de vencimientos de la plataforma de Sello;
+    los de un espacio que tocan en la misma vuelta van en un solo correo, con
+    un enlace a la página de cada organización
+    (`<PANEL_URL>/w/{w}/organizations/{o}`). Un certificado inactivo no
+    avisa.
+  - **El uso del plan:** lo firmado en el mes (UTC) en un ambiente, de
+    `workspace_usage`, contra la cuota (`max_prod_signatures`,
+    `max_test_signatures`) y el tope (`prod_hard_cap`, `test_hard_cap`; sin
+    tope, la cuota): al 80 % de la cuota; al llegar a la cuota, solo cuando
+    se sigue firmando después (el excedente que cobra billing en producción y
+    el margen de prueba de un plan de pago); y al llegar al tope, «Alcanzó el
+    límite de…». Solo el más alto alcanzado (`notices.UsageThreshold`), una
+    vez por espacio, ambiente, mes, umbral y límite: un plan que cambia en el
+    mes se mide de nuevo. Un espacio sin cuota ni tope (Enterprise, una
+    instalación sin límites) no recibe ninguno, y uno con los límites de la
+    consola, sí, sin hablar de un plan. Con un enlace al resumen del espacio
+    (`<PANEL_URL>/w/{w}`).
+  - **A quién:** los `owner` y `admin` del espacio (`store.NoticeRecipients`:
+    los de `workspace_members` y, en la nube, los asientos de billing que el
+    plan admite, por su cuenta de Sello), al correo que dio el último token
+    del panel de cada uno (`users.email`), sin repetir uno. Quien nunca entró
+    al panel no tiene correo aquí y no recibe nada; un `member`, tampoco.
+  - **Las delegaciones:** el aviso de un certificado va solo al espacio dueño
+    de la organización, el que sube sus certificados. Un espacio delegado no
+    lo recibe: no siempre puede leerlos (`certificates:read`) ni cambiarlos,
+    y así cada certificado avisa una vez. El uso sí es del espacio que firma,
+    también con una organización delegada: ahí se cuenta.
+  - **Quién no:** el espacio de la plataforma (`SIGN_PLATFORM_WORKSPACE_ID`):
+    los certificados de sus organizaciones los avisa la plataforma de Sello a
+    cada organización (su bucle de vencimientos), y no tiene plan; tampoco un
+    espacio cuya organización Sello cerró, que ya no firma.
+  - **El envío:** con `RESEND_API_KEY`, por el API HTTP de Resend
+    (`POST /emails`, desde `EMAIL_FROM`, las mismas variables que el panel),
+    un correo por destinatario, en texto y en HTML simple, sin imágenes ni
+    seguimiento, y uno cada 600 ms (el límite de Resend es de la cuenta, que
+    comparte el panel); sin ella, al log, como el panel. Un aviso se apunta
+    (`certificate_notices`, `usage_notices`) solo después de que Resend lo
+    aceptó para cada destinatario, o lo rechazó para siempre (un 400 o un 422:
+    una dirección inválida) y lo aceptó para otro; si no, se intenta otra vez
+    la hora siguiente, con la misma `Idempotency-Key` por aviso y
+    destinatario (Resend la recuerda 24 horas), así que quien ya lo recibió no
+    lo recibe otra vez. Por eso el texto no depende de cuándo sale (dice la
+    fecha y la hora UTC del vencimiento, no los días que faltan). Un 401, un
+    403, un 429 o un 5xx es temporal. Ni el log ni los errores llevan la
+    dirección, salvo el log de una instalación sin Resend, que es el correo.
+  - **Lo que se guarda:** de cada aviso, el certificado o el espacio, el
+    ambiente, el mes, el umbral, el límite y cuándo salió; nunca los
+    destinatarios ni el texto. Las filas de un certificado se van con él; las
+    del uso, al empezar el segundo mes después del suyo (la misma tarea).
+  - **Probado:** los umbrales (sus bordes, lo que ya salió, cada plan), los
+    textos exactos de cada aviso y su HTML escapado, la vuelta con una base y
+    un correo falsos (un correo por espacio, cada destinatario con su clave,
+    lo que no se repite, los reintentos con el mismo mensaje y la misma
+    clave, una dirección rechazada, nadie a quien escribir, otra instancia
+    con el bloqueo), el envío contra un Resend falso (la petición, cada
+    respuesta, el intervalo) y, con `POSTGRES_TEST_URL`
+    (`internal/notices/integration_test.go`), los destinatarios de cada
+    espacio (los roles, sin correo, los asientos que el plan admite, la misma
+    dirección dos veces), el espacio delegado, el de la plataforma y uno
+    cerrado que no reciben nada, el uso sin límites, lo que se apunta y no se
+    repite, el tope, un fallo de Resend que espera a la vuelta siguiente, el
+    bloqueo, la purga del uso viejo y lo que se va con su certificado.
+- **La bitácora de auditoría** (desde el 2026-11-20, migración `0005`;
+  `internal/audit`, `store/audit.go` y `httpapi/audit.go`; el contrato, en
+  «Registro de actividad» de `contracts/README.md`): quién cambió qué en un
+  espacio, para quien lo administra (`GET /workspaces/{w}/audit-events`).
+  Decidido al hacerlo:
+  - **Qué se registra:** cada cambio de una persona (el token) o de una
+    clave (también por el servidor MCP, que llama en proceso a la misma
+    ruta) al espacio y a lo que guarda: sus datos y sus firmas por minuto,
+    sus miembros (rol, quitar, salir, también al borrar la cuenta), sus
+    invitaciones (enviar, reenviar, revocar, aceptar), sus organizaciones
+    (crear, cambiar, borrar, traerlas de la plataforma y devolverlas), sus
+    certificados (subir, activar, desactivar, borrar), sus delegaciones
+    (dar, quitar, renunciar) y sus claves (crear, revocar, también las que
+    caen con su organización); lo que empuja billing en la nube (el plan y
+    sus límites, el nombre, cerrar y reabrir; no los asientos, que son los
+    miembros de la organización en Sello), lo que hace la consola
+    (`workspace create`, `member add`, `workspace limits`, `key create`) y
+    cada exportación. No las firmas ni las verificaciones: el registro de
+    firmas ya tiene cada firma. Un cambio que no cambia nada (el mismo rol,
+    un `PATCH` con lo mismo, una organización que ya existía) no se
+    registra. La lista, con lo que dice cada una, en `audit.Actions` y en
+    `AuditAction` del contrato.
+  - **En la misma transacción que el cambio:** cada función del _store_ que
+    cambia algo escribe su evento con el mismo `tx` (`store.record`), así
+    que hay un evento exactamente cuando hay un cambio: ni un cambio sin
+    evento si el proceso cae a la mitad, ni un evento de un cambio que se
+    deshizo; y lo de antes (el rol anterior, el nombre anterior, el
+    certificado que dejó de estar activo) se lee bajo el mismo bloqueo. Si
+    escribir el evento falla, el cambio tampoco se hace. Las funciones que
+    eran una sola sentencia pasaron a una transacción. La exportación no
+    cambia nada: su evento se escribe solo, antes de enviarla, y si falla no
+    se envía.
+  - **El actor, en el contexto de la petición:** `authed` lo pone una vez
+    por petición (`audit.WithActor`): la persona con el `sub`, el correo y
+    el nombre de su token, o la clave por su id (y `via: mcp` si la llamó
+    una herramienta, que marca `mcpDispatch`); la consola pone el suyo, y
+    billing es el actor de todo lo que aplica `ApplyState`. Así no cambió la
+    firma de ninguna función del _store_ salvo las de los certificados, que
+    reciben el espacio desde el que se actúa. Lo que cambia sin actor (una
+    prueba que llama al _store_) queda como `system`. El nombre de una clave
+    o de un espacio se lee al escribir el evento, en la misma transacción: es
+    el de ese momento.
+  - **Entre espacios:** un cambio de otro espacio a lo que este guarda (una
+    delegación que le dan o le quitan, un certificado que sube a una
+    organización suya quien la tiene delegada con `certificates:write`, como
+    la plataforma, una organización que la empresa se lleva o que vuelve a la
+    plataforma) queda en los dos, y en el que no actuó el actor es el otro
+    espacio (`actor.type: workspace`, con su nombre), nunca su persona ni su
+    clave, que no son de su incumbencia. Al borrar un espacio, la
+    plataforma ve que ese espacio le devolvió sus organizaciones, no quién
+    lo borró.
+  - **Qué guarda cada evento:** la hora; el actor (su tipo, el `sub`, el id
+    de la clave o del espacio, el correo y el nombre de la persona según su
+    token, el nombre de la clave o del espacio, y `via`); la acción
+    (`certificate.uploaded`…); el objeto (su tipo, su id y su nombre en ese
+    momento: el de la organización, también para sus certificados y
+    delegaciones, el de la clave, el correo del miembro o de la invitación);
+    y un JSON pequeño con lo que cambió (antes y después, el rol, el
+    ambiente, la serie y el vencimiento de un certificado, los permisos de
+    una delegación o de una clave). Nunca un secreto: ni claves, ni sus
+    hashes, ni tokens de invitación, ni el material de un certificado, ni su
+    PIN.
+  - **Sin IP ni navegador:** por minimizar los datos, como el resto de
+    Sello, y porque no servirían: las personas llegan al API por el proxy del
+    panel (`/api/sign/*`), que no pasa la dirección ni el navegador, así que
+    el API vería siempre la del panel; guardarlas pediría confiar en una
+    cabecera reenviada, y la política de privacidad tendría que decirlo. El
+    log de las peticiones tampoco las guarda.
+  - **Quién lo lee:** con el token, `owner` y `admin` (un `member`, `403`);
+    una clave, `403`, y por eso no está en el servidor MCP: la bitácora nombra
+    a personas (los correos de los miembros y de los invitados), que hoy
+    ninguna clave lee (miembros e invitaciones son solo del token), y ningún
+    scope de hoy encaja: `logs:read` es el registro de firmas, y darle esto
+    cambiaría lo que ve una clave que ya existe. Si hace falta, sería un
+    scope nuevo (`audit:read`).
+  - **Cuánto dura:** 365 días, sea cual sea el plan (`audit.RetentionDays`,
+    una sola constante); la tarea de la retención los borra cada hora con el
+    registro de firmas, bajo su mismo _advisory lock_, en lotes, por el id
+    (UUIDv7). Se van con su espacio (`ON DELETE CASCADE`). Los de las
+    personas que borran su cuenta se quedan en los espacios de los que
+    salieron, con su correo, hasta que venzan: son lo que pasó en ese
+    espacio.
+  - **La exportación** lleva la bitácora (`audit_events`), de la más nueva a
+    la más antigua, antes del registro de firmas y escrita igual, a medida
+    que se lee; la primera es esa exportación.
+  - **Probado,** con `POSTGRES_TEST_URL` (`httpapi/audit_test.go`): cada
+    clase de cambio de una instalación propia con su actor y sus detalles
+    (también los que no cambian nada, una clave que crea otra, una revocada
+    por el servidor MCP, la clave que cae con su organización, la consola),
+    el espacio delegado que sube un certificado y renuncia (en los dos
+    espacios), quién lo lee, los filtros y la paginación, que ningún secreto
+    aparezca, la exportación; en la nube, el plan, cerrar y reabrir, traer y
+    devolver organizaciones y la delegación bloqueada de la plataforma, en los
+    dos espacios; la retención (lo de hace más de 365 días, con el registro de
+    firmas) y borrar la cuenta (su espacio se va con su bitácora; el otro
+    conserva lo que hizo y que salió). `deletion_test.go` cuenta también
+    `audit_events` al borrar un espacio, y que la plataforma ve al espacio
+    borrado, no a su persona. Sin base, `internal/audit` (el actor, los
+    cambios, las acciones).
 - **El servidor MCP** (desde el 2026-11-20, `internal/httpapi/mcp.go`; el
   contrato, en «Servidor MCP» de `contracts/README.md`): `POST /mcp`, con el
   SDK oficial de Go (`github.com/modelcontextprotocol/go-sdk` v1.8.0, el de
@@ -841,7 +1078,10 @@ con las del contrato).
   minuto contra Valkey. Además, a mano, firmar y verificar un DTE
   con el firmador de El Salvador y un certificado de
   `../sello/apps/api/tools/devcert`.
-- **Falta** (fase 2): los avisos y la bitácora de auditoría.
+- **Falta** (fase 2): de los avisos, que una persona elija no recibirlos,
+  avisos en el panel y otros avisos (una suscripción que vence, una firma
+  que falla); de la bitácora, leerla con una clave (un scope nuevo) y los
+  asientos que empuja billing.
 
 **En local**, desde `apps/api`, con `podman compose up -d` en la raíz:
 
@@ -879,7 +1119,8 @@ curl -s 127.0.0.1:4441/workspaces/self/signatures -H "X-API-Key: $KEY"
 Variables, en `apps/api/.env.example`: las de «Variables» de `AGENTS.md`, más
 `ADDR`, `SIGN_SECRETS_KEY_PREVIOUS` (la clave anterior mientras se rota),
 `CORS_ORIGINS`, `SIGN_RATE_LIMIT_PER_MINUTE` y `SIGN_LOG_RETENTION_DAYS` (los
-límites de los espacios sin plan; vacías, ninguno), `LOG_FORMAT` y
+límites de los espacios sin plan; vacías, ninguno), `RESEND_API_KEY` y
+`EMAIL_FROM` (los avisos; sin la clave, van al log), `LOG_FORMAT` y
 `LOG_LEVEL`. `PANEL_URL` y `API_URL` valen por
 defecto `http://127.0.0.1:4440` y `http://127.0.0.1:4441`, los del panel. Los
 logs nunca llevan una clave, un token, un documento ni material de un

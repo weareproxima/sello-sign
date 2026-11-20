@@ -19,6 +19,11 @@
  */
 
 import type { PanelConfig } from './config'
+import {
+	checkPassword,
+	passwordAttemptsMessage,
+	type PasswordAttempts,
+} from './password-attempts'
 
 /** Whether this install lets a person change their e-mail. */
 export function emailChangeAllowed(
@@ -42,7 +47,10 @@ export type EmailChangeResult =
 				| 'invalid-email'
 				| 'same-email'
 				| 'invalid-password'
+				| 'too-many-attempts'
 				| 'failed'
+			/** With `too-many-attempts`: when to try again. */
+			retryAt?: string
 	  }
 
 /** An address as better-auth keeps it: trimmed, in lower case. */
@@ -64,6 +72,8 @@ export async function emailChangeFlow(deps: {
 	/** Whether the account has a password (a credential account). */
 	hasPassword: boolean
 	verifyPassword: (password: string) => Promise<boolean>
+	/** The account's attempts at its password (`lib/password-attempts.ts`). */
+	attempts: PasswordAttempts
 	/** better-auth's change: e-mails the link to the new address. */
 	requestChange: (email: string) => Promise<void>
 	/** Tells the current address; its failure doesn't stop the change. */
@@ -77,8 +87,12 @@ export async function emailChangeFlow(deps: {
 		return { ok: false, reason: 'invalid-email' }
 	if (email === normalizeEmail(deps.currentEmail))
 		return { ok: false, reason: 'same-email' }
-	if (!deps.password || !(await deps.verifyPassword(deps.password)))
-		return { ok: false, reason: 'invalid-password' }
+	const check = await checkPassword(
+		deps.password,
+		deps.verifyPassword,
+		deps.attempts
+	)
+	if (!check.ok) return check
 	try {
 		await deps.requestChange(email)
 	} catch {
@@ -114,6 +128,8 @@ export function emailChangeMessage(
 			return 'Ese ya es el correo de su cuenta.'
 		case 'invalid-password':
 			return 'La contraseña no es correcta.'
+		case 'too-many-attempts':
+			return passwordAttemptsMessage(result.retryAt)
 		case 'provider':
 			return 'Su correo viene de su proveedor de inicio de sesión, y se cambia allí.'
 		case 'disabled':

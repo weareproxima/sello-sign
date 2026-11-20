@@ -24,6 +24,7 @@ import { Route as AppWorkspacesNewRouteImport } from './routes/_app.workspaces.n
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiSignSplatRouteImport } from './routes/api/sign/$'
 import { Route as AppWWorkspaceIdIndexRouteImport } from './routes/_app.w.$workspaceId.index'
+import { Route as AppWWorkspaceIdActivityRouteImport } from './routes/_app.w.$workspaceId.activity'
 import { Route as AppWWorkspaceIdApiKeysRouteImport } from './routes/_app.w.$workspaceId.api-keys'
 import { Route as AppWWorkspaceIdMembersRouteImport } from './routes/_app.w.$workspaceId.members'
 import { Route as AppWWorkspaceIdSettingsRouteImport } from './routes/_app.w.$workspaceId.settings'
@@ -109,6 +110,11 @@ const ApiSignSplatRoute = ApiSignSplatRouteImport.update({
 const AppWWorkspaceIdIndexRoute = AppWWorkspaceIdIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppWWorkspaceIdRoute,
+} as any)
+const AppWWorkspaceIdActivityRoute = AppWWorkspaceIdActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => AppWWorkspaceIdRoute,
 } as any)
 const AppWWorkspaceIdApiKeysRoute = AppWWorkspaceIdApiKeysRouteImport.update({
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/workspaces/new': typeof AppWorkspacesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/sign/$': typeof ApiSignSplatRoute
+  '/w/$workspaceId/activity': typeof AppWWorkspaceIdActivityRoute
   '/w/$workspaceId/api-keys': typeof AppWWorkspaceIdApiKeysRoute
   '/w/$workspaceId/members': typeof AppWWorkspaceIdMembersRoute
   '/w/$workspaceId/settings': typeof AppWWorkspaceIdSettingsRoute
@@ -226,6 +233,7 @@ export interface FileRoutesByTo {
   '/workspaces/new': typeof AppWorkspacesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/sign/$': typeof ApiSignSplatRoute
+  '/w/$workspaceId/activity': typeof AppWWorkspaceIdActivityRoute
   '/w/$workspaceId/api-keys': typeof AppWWorkspaceIdApiKeysRoute
   '/w/$workspaceId/members': typeof AppWWorkspaceIdMembersRoute
   '/w/$workspaceId/settings': typeof AppWWorkspaceIdSettingsRoute
@@ -256,6 +264,7 @@ export interface FileRoutesById {
   '/_app/workspaces/new': typeof AppWorkspacesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/sign/$': typeof ApiSignSplatRoute
+  '/_app/w/$workspaceId/activity': typeof AppWWorkspaceIdActivityRoute
   '/_app/w/$workspaceId/api-keys': typeof AppWWorkspaceIdApiKeysRoute
   '/_app/w/$workspaceId/members': typeof AppWWorkspaceIdMembersRoute
   '/_app/w/$workspaceId/settings': typeof AppWWorkspaceIdSettingsRoute
@@ -286,6 +295,7 @@ export interface FileRouteTypes {
     | '/workspaces/new'
     | '/api/auth/$'
     | '/api/sign/$'
+    | '/w/$workspaceId/activity'
     | '/w/$workspaceId/api-keys'
     | '/w/$workspaceId/members'
     | '/w/$workspaceId/settings'
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/workspaces/new'
     | '/api/auth/$'
     | '/api/sign/$'
+    | '/w/$workspaceId/activity'
     | '/w/$workspaceId/api-keys'
     | '/w/$workspaceId/members'
     | '/w/$workspaceId/settings'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/_app/workspaces/new'
     | '/api/auth/$'
     | '/api/sign/$'
+    | '/_app/w/$workspaceId/activity'
     | '/_app/w/$workspaceId/api-keys'
     | '/_app/w/$workspaceId/members'
     | '/_app/w/$workspaceId/settings'
@@ -474,6 +486,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppWWorkspaceIdIndexRouteImport
       parentRoute: typeof AppWWorkspaceIdRoute
     }
+    '/_app/w/$workspaceId/activity': {
+      id: '/_app/w/$workspaceId/activity'
+      path: '/activity'
+      fullPath: '/w/$workspaceId/activity'
+      preLoaderRoute: typeof AppWWorkspaceIdActivityRouteImport
+      parentRoute: typeof AppWWorkspaceIdRoute
+    }
     '/_app/w/$workspaceId/api-keys': {
       id: '/_app/w/$workspaceId/api-keys'
       path: '/api-keys'
@@ -593,6 +612,7 @@ const AppWWorkspaceIdOrganizationsOrganizationIdRouteWithChildren =
   )
 
 interface AppWWorkspaceIdRouteChildren {
+  AppWWorkspaceIdActivityRoute: typeof AppWWorkspaceIdActivityRoute
   AppWWorkspaceIdApiKeysRoute: typeof AppWWorkspaceIdApiKeysRoute
   AppWWorkspaceIdMembersRoute: typeof AppWWorkspaceIdMembersRoute
   AppWWorkspaceIdSettingsRoute: typeof AppWWorkspaceIdSettingsRoute
@@ -606,6 +626,7 @@ interface AppWWorkspaceIdRouteChildren {
 }
 
 const AppWWorkspaceIdRouteChildren: AppWWorkspaceIdRouteChildren = {
+  AppWWorkspaceIdActivityRoute: AppWWorkspaceIdActivityRoute,
   AppWWorkspaceIdApiKeysRoute: AppWWorkspaceIdApiKeysRoute,
   AppWWorkspaceIdMembersRoute: AppWWorkspaceIdMembersRoute,
   AppWWorkspaceIdSettingsRoute: AppWWorkspaceIdSettingsRoute,
