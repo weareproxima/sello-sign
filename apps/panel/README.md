@@ -31,9 +31,23 @@ El API (`apps/api`) tiene que tener `PANEL_URL` igual a `BETTER_AUTH_URL` y
    (`src/routes/api/sign/$.ts`): así el API no tiene que responder CORS al
    panel. No añade credenciales.
 
+## El correo
+
+Todo lo que el panel envía (el restablecimiento de la contraseña, las
+invitaciones y «Hablar con ventas») sale por `src/lib/email.ts`: Resend con
+`RESEND_API_KEY`, desde `EMAIL_FROM` (en la nube, una dirección de
+`@sign.sello.tax`, ya verificada en Resend). Sin la clave, el correo se
+escribe en la consola del servidor, con su enlace. La plantilla de los
+correos de la cuenta está en `src/lib/account-email.ts`.
+
 ## Comprobaciones
 
-`bun run typecheck`, `bun run test` (vitest) y `bun run build`.
+`bun run typecheck`, `bun run test` (vitest), `bun run lint:design` y
+`bun run build`. `lint:design` (`scripts/lint-design.ts`) aplica las reglas de
+`../sello/DESIGN.md` que se leen en el código (ni tamaños, colores, radios,
+sombras, duraciones ni opacidades fuera de los tokens, ni alias de shadcn, ni
+colores con `dark:`) al código propio del panel; lo del registro `@sello` no
+se revisa aquí. Una excepción lleva `ds-allow: <por qué>`.
 
 ## En Cloudflare Workers
 
@@ -59,4 +73,11 @@ atrás, en [`docs/deploy.md`](../../docs/deploy.md).
   con `bunx shadcn@latest add @sello/<nombre> --overwrite` (ver «Reglas» en
   `AGENTS.md`).
 - `src/routes/`: `_auth.*` (entrar), `_app.*` (con sesión), `_app.w.$workspaceId.*`
-  (un espacio).
+  (un espacio, también «Su cuenta», `account`, y «Verificar una firma»,
+  `verify`).
+- `src/lib/verify-client.ts`: el verificador de firmas que corre en el
+  navegador, copia exacta del de `../sign-old` (y del de `sello.tax/sign/verify`):
+  no se edita aquí ni pasa por Prettier.
+- `src/styles/cards.css` y `src/components/table-cards.tsx`: en el móvil, una
+  tabla larga como tarjetas; cada celda dice su columna en `data-label`, la
+  del título va sin él y la de las acciones con `data-actions`.

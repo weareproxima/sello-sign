@@ -1,6 +1,7 @@
 import type { BetterAuthOptions } from 'better-auth'
 import { genericOAuth, jwt } from 'better-auth/plugins'
 import { PostgresDialect } from 'kysely'
+import { resetPasswordEmail } from './account-email'
 import type { Database } from './database'
 import {
 	decodeJwtPayload,
@@ -109,11 +110,12 @@ export function tokenPayload(user: {
 type Deps = {
 	config: PanelConfig
 	database: Database
-	/** Sends an email; for now the console (no mail provider yet). */
+	/** Sends an e-mail (`lib/email.ts`). */
 	sendEmail: (message: {
 		to: string
 		subject: string
 		text: string
+		html?: string
 	}) => Promise<void>
 }
 
@@ -152,11 +154,7 @@ export function authOptions({ config, database, sendEmail }: Deps) {
 			disableSignUp: oidcOnly,
 			minPasswordLength: 8,
 			sendResetPassword: async ({ user, url }) => {
-				await sendEmail({
-					to: user.email,
-					subject: 'Restablecer su contraseña de Sello Sign',
-					text: `Para elegir una contraseña nueva, abra este enlace: ${url}`,
-				})
+				await sendEmail({ to: user.email, ...resetPasswordEmail(url) })
 			},
 		},
 		user: {

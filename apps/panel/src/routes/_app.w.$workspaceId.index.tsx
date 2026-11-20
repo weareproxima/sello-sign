@@ -17,6 +17,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '#/components/ui/table'
+import { TableCards } from '#/components/table-cards'
 import { Empty } from '#/components/empty'
 import { FormError, Page, PageHeader } from '#/components/page'
 import { api, errorMessage, type Certificate } from '#/lib/api'
@@ -214,46 +215,54 @@ function Dashboard() {
 						/>
 					)
 				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Organización</TableHead>
-								<TableHead>Documento</TableHead>
-								<TableHead>Ambiente</TableHead>
-								<TableHead className="text-right">Fecha</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{recent.data.items.map((entry) => (
-								<TableRow key={entry.id}>
-									<TableCell className="font-medium">
-										<span className="inline-flex items-center gap-2">
-											<CircleCheckIcon
-												className="size-4 text-ok"
-												aria-label="Firmado"
-											/>
-											{entry.organization_name}
-										</span>
-									</TableCell>
-									<TableCell className="font-mono text-label">
-										{entry.document_type ?? '—'}
-									</TableCell>
-									<TableCell>
-										<Badge
-											variant={
-												entry.environment === 'prod' ? 'default' : 'secondary'
-											}
-										>
-											{ENVIRONMENT_LABELS[entry.environment]}
-										</Badge>
-									</TableCell>
-									<TableCell className="text-right text-meta text-muted-foreground">
-										{formatDateTime(entry.created_at)}
-									</TableCell>
+					<TableCards>
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>Organización</TableHead>
+									<TableHead>Documento</TableHead>
+									<TableHead>Ambiente</TableHead>
+									<TableHead className="text-right">Fecha</TableHead>
 								</TableRow>
-							))}
-						</TableBody>
-					</Table>
+							</TableHeader>
+							<TableBody>
+								{recent.data.items.map((entry) => (
+									<TableRow key={entry.id}>
+										<TableCell className="font-medium">
+											<span className="inline-flex items-center gap-2">
+												<CircleCheckIcon
+													className="size-4 text-ok"
+													aria-label="Firmado"
+												/>
+												{entry.organization_name}
+											</span>
+										</TableCell>
+										<TableCell
+											data-label="Documento"
+											className="font-mono text-label"
+										>
+											{entry.document_type ?? '—'}
+										</TableCell>
+										<TableCell data-label="Ambiente">
+											<Badge
+												variant={
+													entry.environment === 'prod' ? 'default' : 'secondary'
+												}
+											>
+												{ENVIRONMENT_LABELS[entry.environment]}
+											</Badge>
+										</TableCell>
+										<TableCell
+											data-label="Fecha"
+											className="text-right text-meta text-muted-foreground"
+										>
+											{formatDateTime(entry.created_at)}
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					</TableCards>
 				)}
 			</Card>
 		</Page>

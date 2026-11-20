@@ -37,6 +37,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '#/components/ui/table'
+import { TableCards } from '#/components/table-cards'
 import { CertificateBadge } from '#/components/certificate-badge'
 import { Confirm } from '#/components/confirm'
 import { FormError, FormField } from '#/components/page'
@@ -135,81 +136,88 @@ function Certificates() {
 					description="Suba el certificado de firma de la organización para poder firmar con ella."
 				/>
 			) : (
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Ambiente</TableHead>
-							<TableHead>Sujeto</TableHead>
-							<TableHead>Serie</TableHead>
-							<TableHead>Vigencia</TableHead>
-							<TableHead>Estado</TableHead>
-							{canManage ? (
-								<TableHead className="w-10">
-									<span className="sr-only">Acciones</span>
-								</TableHead>
-							) : null}
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{certificates.data.map((c) => (
-							<TableRow
-								key={c.id}
-								className={c.active ? undefined : 'text-faint'}
-							>
-								<TableCell>
-									<Badge
-										variant={c.environment === 'prod' ? 'default' : 'secondary'}
-									>
-										{ENVIRONMENT_LABELS[c.environment]}
-									</Badge>
-								</TableCell>
-								<TableCell className="max-w-64 truncate" title={c.subject}>
-									{c.subject}
-									<span className="block font-mono text-label text-muted-foreground">
-										{c.tax_id ?? '—'}
-									</span>
-								</TableCell>
-								<TableCell className="font-mono text-label">
-									{c.serial}
-								</TableCell>
-								<TableCell className="text-meta">
-									{formatDate(c.not_before)} – {formatDate(c.not_after)}
-								</TableCell>
-								<TableCell>
-									<CertificateBadge certificate={c} />
-								</TableCell>
+				<TableCards>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Ambiente</TableHead>
+								<TableHead>Sujeto</TableHead>
+								<TableHead>Serie</TableHead>
+								<TableHead>Vigencia</TableHead>
+								<TableHead>Estado</TableHead>
 								{canManage ? (
-									<TableCell>
-										<DropdownMenu>
-											<DropdownMenuTrigger
-												render={
-													<Button
-														variant="ghost"
-														size="icon-sm"
-														aria-label="Acciones del certificado"
-													/>
-												}
-											>
-												<MoreHorizontalIcon />
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end" className="min-w-48">
-												<DropdownMenuItem onClick={() => toggle.mutate(c)}>
-													{c.active ? 'Desactivar' : 'Activar'}
-												</DropdownMenuItem>
-												<DropdownMenuItem
-													variant="destructive"
-													onClick={() => setDeleting(c)}
-												>
-													Borrar
-												</DropdownMenuItem>
-											</DropdownMenuContent>
-										</DropdownMenu>
-									</TableCell>
+									<TableHead className="w-10">
+										<span className="sr-only">Acciones</span>
+									</TableHead>
 								) : null}
 							</TableRow>
-						))}
-					</TableBody>
-				</Table>
+						</TableHeader>
+						<TableBody>
+							{certificates.data.map((c) => (
+								<TableRow
+									key={c.id}
+									className={c.active ? undefined : 'text-faint'}
+								>
+									<TableCell data-label="Ambiente">
+										<Badge
+											variant={
+												c.environment === 'prod' ? 'default' : 'secondary'
+											}
+										>
+											{ENVIRONMENT_LABELS[c.environment]}
+										</Badge>
+									</TableCell>
+									<TableCell className="max-w-64 truncate" title={c.subject}>
+										{c.subject}
+										<span className="block font-mono text-label text-muted-foreground">
+											{c.tax_id ?? '—'}
+										</span>
+									</TableCell>
+									<TableCell
+										data-label="Serie"
+										className="font-mono text-label"
+									>
+										{c.serial}
+									</TableCell>
+									<TableCell data-label="Vigencia" className="text-meta">
+										{formatDate(c.not_before)} – {formatDate(c.not_after)}
+									</TableCell>
+									<TableCell data-label="Estado">
+										<CertificateBadge certificate={c} />
+									</TableCell>
+									{canManage ? (
+										<TableCell data-actions>
+											<DropdownMenu>
+												<DropdownMenuTrigger
+													render={
+														<Button
+															variant="ghost"
+															size="icon-sm"
+															aria-label="Acciones del certificado"
+														/>
+													}
+												>
+													<MoreHorizontalIcon />
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end" className="min-w-48">
+													<DropdownMenuItem onClick={() => toggle.mutate(c)}>
+														{c.active ? 'Desactivar' : 'Activar'}
+													</DropdownMenuItem>
+													<DropdownMenuItem
+														variant="destructive"
+														onClick={() => setDeleting(c)}
+													>
+														Borrar
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</TableCell>
+									) : null}
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				</TableCards>
 			)}
 
 			<UploadDialog

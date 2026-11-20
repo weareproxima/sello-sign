@@ -23,6 +23,7 @@ import (
 	"proxima.la/sello/sign/internal/billing"
 	"proxima.la/sello/sign/internal/cache"
 	"proxima.la/sello/sign/internal/ids"
+	"proxima.la/sello/sign/internal/ratelimit"
 	"proxima.la/sello/sign/internal/store"
 )
 
@@ -32,8 +33,10 @@ var openapiYAML []byte
 
 // Deps are what the server needs.
 type Deps struct {
-	Store    *store.Store
-	Keys     cache.Keys
+	Store *store.Store
+	Keys  cache.Keys
+	// Limiter counts the signing rate; in memory if nil.
+	Limiter  ratelimit.Limiter
 	Signer   *Signer
 	Verifier auth.TokenVerifier
 	// Cloud is sign.sello.tax: spaces of Sello's IdP, billing and claims.
@@ -65,6 +68,9 @@ func New(d Deps) *Server {
 	if d.Keys == nil {
 		d.Keys = cache.NewMemoryKeys()
 	}
+	if d.Limiter == nil {
+		d.Limiter = ratelimit.NewMemory()
+	}
 	s := &Server{Deps: d, mux: http.NewServeMux(), touched: map[string]time.Time{}}
 	s.routes()
 	return s
@@ -81,10 +87,16 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /me", s.authed(s.me))
 	m.HandleFunc("GET /me/sello-organizations", s.authed(s.selloOrganizations))
 	m.HandleFunc("POST /workspaces", s.authed(s.createWorkspace))
+	m.HandleFunc("POST /invitation-lookups", s.authed(s.lookupInvitation))
+	m.HandleFunc("POST /invitation-acceptances", s.authed(s.acceptInvitation))
 
 	m.HandleFunc("GET /workspaces/{workspace_id}", s.inWorkspace(s.getWorkspace))
 	m.HandleFunc("PATCH /workspaces/{workspace_id}", s.inWorkspace(s.updateWorkspace))
 	m.HandleFunc("GET /workspaces/{workspace_id}/members", s.inWorkspace(s.listMembers))
+	m.HandleFunc("PATCH /workspaces/{workspace_id}/members/{user_id}", s.inWorkspace(s.updateMember))
+	m.HandleFunc("GET /workspaces/{workspace_id}/invitations", s.inWorkspace(s.listInvitations))
+	m.HandleFunc("POST /workspaces/{workspace_id}/invitations", s.inWorkspace(s.createInvitation))
+	m.HandleFunc("DELETE /workspaces/{workspace_id}/invitations/{invitation_id}", s.inWorkspace(s.revokeInvitation))
 	m.HandleFunc("GET /workspaces/{workspace_id}/usage", s.inWorkspace(s.usage))
 
 	m.HandleFunc("GET /workspaces/{workspace_id}/organizations", s.inWorkspace(s.listOrganizations))
@@ -204,6 +216,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 			h := w.Header()
 			h.Set("Access-Control-Allow-Origin", origin)
 			h.Add("Vary", "Origin")
+			h.Set("Access-Control-Expose-Headers", "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset")
 			if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
 				h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE")
 				h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Organization-Id")
@@ -288,6 +301,26 @@ func (o *optionalString) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	o.Value = &s
+	return nil
+}
+
+// optionalInt is a JSON field that can be absent, null or a whole number.
+type optionalInt struct {
+	Set   bool
+	Value *int
+}
+
+func (o *optionalInt) UnmarshalJSON(b []byte) error {
+	o.Set = true
+	if string(b) == "null" {
+		o.Value = nil
+		return nil
+	}
+	var n int
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	o.Value = &n
 	return nil
 }
 

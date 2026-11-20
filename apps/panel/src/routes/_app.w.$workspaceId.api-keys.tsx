@@ -27,6 +27,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '#/components/ui/table'
+import { TableCards } from '#/components/table-cards'
 import { Confirm } from '#/components/confirm'
 import { CopyButton } from '#/components/copy-button'
 import { EnvironmentPicker } from '#/components/environment-picker'
@@ -106,82 +107,87 @@ function ApiKeys() {
 						description="Cree una clave para firmar desde su sistema con POST /signatures."
 					/>
 				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Nombre</TableHead>
-								<TableHead>Ambiente</TableHead>
-								<TableHead>Alcance</TableHead>
-								<TableHead>Permisos</TableHead>
-								<TableHead>Último uso</TableHead>
-								<TableHead>Creada</TableHead>
-								{canManage ? (
-									<TableHead>
-										<span className="sr-only">Acciones</span>
-									</TableHead>
-								) : null}
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{keys.data.map((key) => {
-								return (
-									<TableRow key={key.id}>
-										<TableCell>
-											<span className="font-medium">{key.name}</span>
-											<span className="block font-mono text-label text-muted-foreground">
-												{key.prefix}…
-											</span>
-										</TableCell>
-										<TableCell>
-											<Badge
-												variant={
-													key.environment === 'prod' ? 'default' : 'secondary'
-												}
-											>
-												{ENVIRONMENT_LABELS[key.environment]}
-											</Badge>
-										</TableCell>
-										<TableCell>
-											{organizationName(key.organization_id) ??
-												'Todo el espacio'}
-										</TableCell>
-										<TableCell className="max-w-72 whitespace-normal">
-											<div className="flex flex-wrap gap-1">
-												{key.scopes.map((s) => (
-													<Badge
-														key={s}
-														variant="outline"
-														className="font-mono"
-													>
-														{s}
-													</Badge>
-												))}
-											</div>
-										</TableCell>
-										<TableCell className="text-meta">
-											{key.last_used_at
-												? formatDate(key.last_used_at)
-												: 'Nunca'}
-										</TableCell>
-										<TableCell className="text-meta">
-											{formatDate(key.created_at)}
-										</TableCell>
-										{canManage ? (
-											<TableCell className="text-right">
-												<Button
-													variant="ghost"
-													size="sm"
-													onClick={() => setRevoking(key)}
-												>
-													Revocar
-												</Button>
+					<TableCards>
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>Nombre</TableHead>
+									<TableHead>Ambiente</TableHead>
+									<TableHead>Alcance</TableHead>
+									<TableHead>Permisos</TableHead>
+									<TableHead>Último uso</TableHead>
+									<TableHead>Creada</TableHead>
+									{canManage ? (
+										<TableHead>
+											<span className="sr-only">Acciones</span>
+										</TableHead>
+									) : null}
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{keys.data.map((key) => {
+									return (
+										<TableRow key={key.id}>
+											<TableCell>
+												<span className="font-medium">{key.name}</span>
+												<span className="block font-mono text-label text-muted-foreground">
+													{key.prefix}…
+												</span>
 											</TableCell>
-										) : null}
-									</TableRow>
-								)
-							})}
-						</TableBody>
-					</Table>
+											<TableCell data-label="Ambiente">
+												<Badge
+													variant={
+														key.environment === 'prod' ? 'default' : 'secondary'
+													}
+												>
+													{ENVIRONMENT_LABELS[key.environment]}
+												</Badge>
+											</TableCell>
+											<TableCell data-label="Alcance">
+												{organizationName(key.organization_id) ??
+													'Todo el espacio'}
+											</TableCell>
+											<TableCell
+												data-label="Permisos"
+												className="max-w-72 whitespace-normal"
+											>
+												<div className="flex flex-wrap gap-1">
+													{key.scopes.map((s) => (
+														<Badge
+															key={s}
+															variant="outline"
+															className="font-mono"
+														>
+															{s}
+														</Badge>
+													))}
+												</div>
+											</TableCell>
+											<TableCell data-label="Último uso" className="text-meta">
+												{key.last_used_at
+													? formatDate(key.last_used_at)
+													: 'Nunca'}
+											</TableCell>
+											<TableCell data-label="Creada" className="text-meta">
+												{formatDate(key.created_at)}
+											</TableCell>
+											{canManage ? (
+												<TableCell data-actions className="text-right">
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={() => setRevoking(key)}
+													>
+														Revocar
+													</Button>
+												</TableCell>
+											) : null}
+										</TableRow>
+									)
+								})}
+							</TableBody>
+						</Table>
+					</TableCards>
 				)}
 			</Card>
 

@@ -15,7 +15,8 @@
 		"deploy": "bun run build:cloudflare && wrangler deploy",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
-		"db:migrate": "bun run scripts/migrate.ts"
+		"db:migrate": "bun run scripts/migrate.ts",
+		"lint:design": "bun scripts/lint-design.ts"
 	},
 	"dependencies": {
 		"@base-ui/react": "1.8.0",

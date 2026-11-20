@@ -65,3 +65,53 @@ func TestTaxIDKey(t *testing.T) {
 		}
 	}
 }
+
+func TestCanInvite(t *testing.T) {
+	for _, c := range []struct {
+		actor, role Role
+		want        bool
+	}{
+		{Owner, Owner, true}, {Owner, Admin, true}, {Owner, Member, true},
+		{Admin, Owner, false}, {Admin, Admin, true}, {Admin, Member, true},
+		{Member, Member, false}, {"", Member, false},
+	} {
+		if got := CanInvite(c.actor, c.role); got != c.want {
+			t.Errorf("CanInvite(%s, %s) = %v", c.actor, c.role, got)
+		}
+	}
+}
+
+func TestCanSetRole(t *testing.T) {
+	for _, c := range []struct {
+		actor, from, to Role
+		want            bool
+	}{
+		{Owner, Member, Owner, true},
+		{Owner, Owner, Admin, true},
+		{Admin, Member, Admin, true},
+		{Admin, Admin, Member, true},
+		{Admin, Member, Owner, false},
+		{Admin, Owner, Admin, false},
+		{Member, Member, Admin, false},
+	} {
+		if got := CanSetRole(c.actor, c.from, c.to); got != c.want {
+			t.Errorf("CanSetRole(%s, %s → %s) = %v", c.actor, c.from, c.to, got)
+		}
+	}
+}
+
+func TestEmail(t *testing.T) {
+	if got := NormalizeEmail("  Ana@Example.COM "); got != "ana@example.com" {
+		t.Errorf("NormalizeEmail = %q", got)
+	}
+	for in, want := range map[string]bool{
+		"ana@example.com": true, "a.b+c@sub.example.co": true,
+		"ana": false, "@example.com": false, "ana@": false, "ana@example": false,
+		"ana@example.": false, "a b@example.com": false, "a@b@example.com": false,
+		"Ana <ana@example.com>": false,
+	} {
+		if got := ValidEmail(in); got != want {
+			t.Errorf("ValidEmail(%q) = %v", in, got)
+		}
+	}
+}

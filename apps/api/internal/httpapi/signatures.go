@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"proxima.la/sello/sign/internal/auth"
 	"proxima.la/sello/sign/internal/model"
 	"proxima.la/sello/sign/internal/signing"
 	"proxima.la/sello/sign/internal/store"
@@ -117,24 +118,10 @@ func (s *Server) keyOrganization(w http.ResponseWriter, r *http.Request, c *call
 	return org, true
 }
 
-// open checks the signing space is open: one whose organization Sello
-// deleted no longer signs.
-func (s *Server) open(w http.ResponseWriter, r *http.Request, workspaceID string) bool {
-	ws, err := s.Store.Workspace(r.Context(), workspaceID)
-	if err != nil {
-		internalError(w, r, err)
-		return false
-	}
-	if ws.Closed() {
-		writeProblem(w, problem(http.StatusForbidden, "workspace-closed", "La organización de este espacio se cerró en Sello: ya no firma."))
-		return false
-	}
-	return true
-}
-
 // signAndRecord signs body for org in env, logs it and counts it in the
-// signing space.
-func (s *Server) signAndRecord(w http.ResponseWriter, r *http.Request, org store.Organization, signer string, env model.Environment, keyID, userID string) {
+// signing space, if its limits admit it. k is the key that signs; nil from
+// the panel, with userID.
+func (s *Server) signAndRecord(w http.ResponseWriter, r *http.Request, org store.Organization, signer string, env model.Environment, k *auth.Key, userID string) {
 	ct, prob := documentType(r)
 	if prob != nil {
 		writeProblem(w, prob)
@@ -145,8 +132,12 @@ func (s *Server) signAndRecord(w http.ResponseWriter, r *http.Request, org store
 		writeProblem(w, prob)
 		return
 	}
-	if !s.open(w, r, signer) {
+	if !s.admit(w, r, signer, env, k) {
 		return
+	}
+	keyID := ""
+	if k != nil {
+		keyID = k.ID
 	}
 	start := time.Now()
 	signed, err := s.Signer.Sign(r.Context(), org, env, body, ct)
@@ -179,7 +170,7 @@ func (s *Server) signWithKey(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	k := c.key()
-	s.signAndRecord(w, r, org, k.WorkspaceID, k.Environment, k.ID, "")
+	s.signAndRecord(w, r, org, k.WorkspaceID, k.Environment, k, "")
 }
 
 // verifyWithKey handles POST /verifications.
@@ -237,7 +228,7 @@ func (s *Server) signFromPanel(w http.ResponseWriter, r *http.Request, c *call) 
 		writeProblem(w, forbidden("La delegación de esta organización no permite firmar."))
 		return
 	}
-	s.signAndRecord(w, r, c.org, c.ws.ID, env, "", u.Subject)
+	s.signAndRecord(w, r, c.org, c.ws.ID, env, nil, u.Subject)
 }
 
 // listSignatures handles GET /workspaces/{w}/signatures.

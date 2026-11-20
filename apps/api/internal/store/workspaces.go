@@ -13,17 +13,29 @@ import (
 const workspaceColumns = `w.id, w.name, w.default_country, w.sello_workspace_id, w.plan,
 	w.max_organizations, w.max_prod_signatures, w.max_test_signatures, w.max_members,
 	w.requests_per_minute, w.retention_days, w.prod_hard_cap, w.test_hard_cap,
-	w.billing_version, w.billing_closed_at, w.created_at`
+	w.billing_version, w.billing_closed_at, w.created_at, w.own_requests_per_minute`
 
-func scanWorkspace(row pgx.Row, extra ...any) (Workspace, error) {
+// scanWorkspace reads a space; one without a plan takes the install's
+// defaults where its row has no limit.
+func (s *Store) scanWorkspace(row pgx.Row, extra ...any) (Workspace, error) {
 	var w Workspace
 	l := &w.Limits
 	dest := append([]any{&w.ID, &w.Name, &w.DefaultCountry, &w.SelloWorkspaceID, &w.Plan,
 		&l.Organizations, &l.ProdSignatures, &l.TestSignatures, &l.Members,
 		&l.RequestsPerMinute, &l.RetentionDays, &l.ProdHardCap, &l.TestHardCap,
-		&w.BillingVersion, &w.ClosedAt, &w.CreatedAt}, extra...)
-	err := row.Scan(dest...)
-	return w, notFound(err)
+		&w.BillingVersion, &w.ClosedAt, &w.CreatedAt, &w.OwnRequestsPerMinute}, extra...)
+	if err := row.Scan(dest...); err != nil {
+		return Workspace{}, notFound(err)
+	}
+	if w.Plan == nil {
+		if l.RequestsPerMinute == nil {
+			l.RequestsPerMinute = s.defaults.RequestsPerMinute
+		}
+		if l.RetentionDays == nil {
+			l.RetentionDays = s.defaults.RetentionDays
+		}
+	}
+	return w, nil
 }
 
 // UpsertUser keeps who a panel user is, as their token says, to name them
@@ -81,12 +93,12 @@ func (s *Store) Workspace(ctx context.Context, id string) (Workspace, error) {
 	if !ids.Valid(id) {
 		return Workspace{}, ErrNotFound
 	}
-	return scanWorkspace(s.pool.QueryRow(ctx, `SELECT `+workspaceColumns+` FROM workspaces w WHERE w.id = $1`, id))
+	return s.scanWorkspace(s.pool.QueryRow(ctx, `SELECT `+workspaceColumns+` FROM workspaces w WHERE w.id = $1`, id))
 }
 
 // WorkspaceBySelloID reads the space of an organization of Sello's IdP.
 func (s *Store) WorkspaceBySelloID(ctx context.Context, selloID string) (Workspace, error) {
-	return scanWorkspace(s.pool.QueryRow(ctx, `SELECT `+workspaceColumns+` FROM workspaces w WHERE w.sello_workspace_id = $1`, selloID))
+	return s.scanWorkspace(s.pool.QueryRow(ctx, `SELECT `+workspaceColumns+` FROM workspaces w WHERE w.sello_workspace_id = $1`, selloID))
 }
 
 // WorkspacesBySelloIDs reads the spaces of several organizations of
@@ -99,7 +111,7 @@ func (s *Store) WorkspacesBySelloIDs(ctx context.Context, selloIDs []string) (ma
 	defer rows.Close()
 	out := map[string]Workspace{}
 	for rows.Next() {
-		w, err := scanWorkspace(rows)
+		w, err := s.scanWorkspace(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -113,6 +125,8 @@ type WorkspacePatch struct {
 	Name *string
 	// DefaultCountry set to a nil *string clears it.
 	DefaultCountry **string
+	// OwnRequestsPerMinute set to a nil *int clears it.
+	OwnRequestsPerMinute **int
 }
 
 // UpdateWorkspace changes a space.
@@ -122,11 +136,17 @@ func (s *Store) UpdateWorkspace(ctx context.Context, id string, p WorkspacePatch
 	if setCountry {
 		country = *p.DefaultCountry
 	}
+	setRate := p.OwnRequestsPerMinute != nil
+	var rate *int
+	if setRate {
+		rate = *p.OwnRequestsPerMinute
+	}
 	tag, err := s.pool.Exec(ctx, `UPDATE workspaces SET
 			name = COALESCE($2, name),
 			default_country = CASE WHEN $3 THEN $4 ELSE default_country END,
+			own_requests_per_minute = CASE WHEN $5 THEN $6 ELSE own_requests_per_minute END,
 			updated_at = now()
-		WHERE id = $1`, id, p.Name, setCountry, country)
+		WHERE id = $1`, id, p.Name, setCountry, country, setRate, rate)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -184,7 +204,7 @@ func (s *Store) WorkspacesOf(ctx context.Context, userID, selloSub string) ([]Wo
 	index := map[string]int{}
 	for rows.Next() {
 		var role string
-		w, err := scanWorkspace(rows, &role)
+		w, err := s.scanWorkspace(rows, &role)
 		if err != nil {
 			return nil, err
 		}

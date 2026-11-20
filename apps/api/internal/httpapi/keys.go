@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -39,10 +40,11 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request, c *call) {
 		return
 	}
 	var body struct {
-		Name           *string  `json:"name"`
-		Environment    string   `json:"environment"`
-		Scopes         []string `json:"scopes"`
-		OrganizationID *string  `json:"organization_id"`
+		Name              *string  `json:"name"`
+		Environment       string   `json:"environment"`
+		Scopes            []string `json:"scopes"`
+		OrganizationID    *string  `json:"organization_id"`
+		RequestsPerMinute *int     `json:"requests_per_minute"`
 	}
 	if p := decode(w, r, &body); p != nil {
 		writeProblem(w, p)
@@ -61,6 +63,11 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request, c *call) {
 	scopes, ok := model.ParseScopes(body.Scopes, model.AllScopes)
 	if !ok {
 		writeProblem(w, invalid("«scopes» lleva uno o más permisos válidos."))
+		return
+	}
+	rate := body.RequestsPerMinute
+	if rate != nil && (*rate < 1 || *rate > maxRequestsPerMinute) {
+		writeProblem(w, invalid("«requests_per_minute» es un número de 1 a 1000000, o null."))
 		return
 	}
 	var orgID *string
@@ -88,6 +95,9 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request, c *call) {
 		case k.OrganizationID != "" && (orgID == nil || *orgID != k.OrganizationID):
 			writeProblem(w, forbidden("Una clave de una sola organización solo crea claves de esa organización."))
 			return
+		case k.RequestsPerMinute != nil && (rate == nil || *rate > *k.RequestsPerMinute):
+			writeProblem(w, forbidden(fmt.Sprintf("Una clave con un límite de %d firmas por minuto solo crea claves con ese límite o uno menor.", *k.RequestsPerMinute)))
+			return
 		}
 		createdBy = "key:" + k.ID
 	} else {
@@ -96,7 +106,7 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request, c *call) {
 	key, hash, prefix := auth.NewKey(env)
 	saved, err := s.Store.CreateAPIKey(r.Context(), store.NewAPIKey{
 		WorkspaceID: c.ws.ID, OrganizationID: orgID, Environment: env, Name: *name, Scopes: scopes,
-		Hash: hash, Prefix: prefix, CreatedBy: createdBy,
+		Hash: hash, Prefix: prefix, CreatedBy: createdBy, RequestsPerMinute: rate,
 	})
 	if err != nil {
 		internalError(w, r, err)

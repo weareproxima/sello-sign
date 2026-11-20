@@ -10,13 +10,14 @@ import (
 	"proxima.la/sello/sign/internal/model"
 )
 
-const keyColumns = `k.id, k.workspace_id, k.organization_id, k.environment, k.name, k.scopes, k.prefix, k.last_used_at, k.created_at`
+const keyColumns = `k.id, k.workspace_id, k.organization_id, k.environment, k.name, k.scopes, k.prefix,
+	k.requests_per_minute, k.last_used_at, k.created_at`
 
 func scanKey(row pgx.Row) (APIKey, error) {
 	var k APIKey
 	var env string
 	var scopes []string
-	if err := row.Scan(&k.ID, &k.WorkspaceID, &k.OrganizationID, &env, &k.Name, &scopes, &k.Prefix, &k.LastUsedAt, &k.CreatedAt); err != nil {
+	if err := row.Scan(&k.ID, &k.WorkspaceID, &k.OrganizationID, &env, &k.Name, &scopes, &k.Prefix, &k.RequestsPerMinute, &k.LastUsedAt, &k.CreatedAt); err != nil {
 		return APIKey{}, notFound(err)
 	}
 	k.Environment = model.Environment(env)
@@ -34,6 +35,8 @@ type NewAPIKey struct {
 	Hash           []byte
 	Prefix         string
 	CreatedBy      string
+	// RequestsPerMinute is the key's own signing rate; nil is none.
+	RequestsPerMinute *int
 }
 
 // CreateAPIKey stores a key.
@@ -44,9 +47,10 @@ func (s *Store) CreateAPIKey(ctx context.Context, n NewAPIKey) (APIKey, error) {
 		by = n.CreatedBy
 	}
 	if _, err := s.pool.Exec(ctx, `INSERT INTO api_keys
-		(id, workspace_id, organization_id, environment, name, scopes, hash, prefix, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		id, n.WorkspaceID, n.OrganizationID, string(n.Environment), n.Name, model.Strings(n.Scopes), n.Hash, n.Prefix, by); err != nil {
+		(id, workspace_id, organization_id, environment, name, scopes, hash, prefix, created_by, requests_per_minute)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		id, n.WorkspaceID, n.OrganizationID, string(n.Environment), n.Name, model.Strings(n.Scopes), n.Hash, n.Prefix, by,
+		n.RequestsPerMinute); err != nil {
 		return APIKey{}, err
 	}
 	return scanKey(s.pool.QueryRow(ctx, `SELECT `+keyColumns+` FROM api_keys k WHERE k.id = $1`, id))
@@ -101,8 +105,8 @@ func (s *Store) KeyByHash(ctx context.Context, hash []byte) (auth.Key, error) {
 	var org *string
 	var env string
 	var scopes []string
-	err := s.pool.QueryRow(ctx, `SELECT id, workspace_id, organization_id, environment, scopes
-		FROM api_keys WHERE hash = $1 AND revoked_at IS NULL`, hash).Scan(&k.ID, &k.WorkspaceID, &org, &env, &scopes)
+	err := s.pool.QueryRow(ctx, `SELECT id, workspace_id, organization_id, environment, scopes, requests_per_minute
+		FROM api_keys WHERE hash = $1 AND revoked_at IS NULL`, hash).Scan(&k.ID, &k.WorkspaceID, &org, &env, &scopes, &k.RequestsPerMinute)
 	if err != nil {
 		return auth.Key{}, notFound(err)
 	}

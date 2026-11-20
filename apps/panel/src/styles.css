@@ -5,3 +5,4 @@
    diseño» in AGENTS.md. */
 @import 'tailwindcss';
 @import './styles/sello/theme.css';
+@import './styles/cards.css';

@@ -15,6 +15,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '#/components/ui/table'
+import { TableCards } from '#/components/table-cards'
 import { CountryCode, FormError, Page, PageHeader } from '#/components/page'
 import { CertificateBadge } from '#/components/certificate-badge'
 import { api, errorMessage, type Relation } from '#/lib/api'
@@ -136,66 +137,71 @@ function Organizations() {
 						description="Ninguna organización coincide con la búsqueda."
 					/>
 				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Nombre</TableHead>
-								<TableHead>Identificación</TableHead>
-								<TableHead>País</TableHead>
-								<TableHead>Prueba</TableHead>
-								<TableHead>Producción</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{shown.map((o) => (
-								<TableRow
-									key={o.id}
-									className="cursor-pointer hover:bg-fill"
-									onClick={() =>
-										navigate({
-											to: '/w/$workspaceId/organizations/$organizationId',
-											params: { workspaceId, organizationId: o.id },
-										})
-									}
-								>
-									<TableCell>
-										<Link
-											to="/w/$workspaceId/organizations/$organizationId"
-											params={{ workspaceId, organizationId: o.id }}
-											className="inline-flex items-center gap-2 font-medium"
-											onClick={(e) => e.stopPropagation()}
-										>
-											{o.name}
-											{o.relation === 'delegated' ? (
-												<Badge variant="outline">Delegada</Badge>
-											) : null}
-										</Link>
-									</TableCell>
-									<TableCell className="font-mono text-label">
-										{o.tax_id}
-									</TableCell>
-									<TableCell>
-										<span className="inline-flex items-center gap-2">
-											<CountryCode code={o.country} />
-											<span className="text-muted-foreground">
-												{countryName(o.country)}
-											</span>
-										</span>
-									</TableCell>
-									<TableCell>
-										<CertificateBadge
-											certificate={o.certificates?.test ?? null}
-										/>
-									</TableCell>
-									<TableCell>
-										<CertificateBadge
-											certificate={o.certificates?.prod ?? null}
-										/>
-									</TableCell>
+					<TableCards>
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>Nombre</TableHead>
+									<TableHead>Identificación</TableHead>
+									<TableHead>País</TableHead>
+									<TableHead>Prueba</TableHead>
+									<TableHead>Producción</TableHead>
 								</TableRow>
-							))}
-						</TableBody>
-					</Table>
+							</TableHeader>
+							<TableBody>
+								{shown.map((o) => (
+									<TableRow
+										key={o.id}
+										className="cursor-pointer hover:bg-fill"
+										onClick={() =>
+											navigate({
+												to: '/w/$workspaceId/organizations/$organizationId',
+												params: { workspaceId, organizationId: o.id },
+											})
+										}
+									>
+										<TableCell>
+											<Link
+												to="/w/$workspaceId/organizations/$organizationId"
+												params={{ workspaceId, organizationId: o.id }}
+												className="inline-flex items-center gap-2 font-medium"
+												onClick={(e) => e.stopPropagation()}
+											>
+												{o.name}
+												{o.relation === 'delegated' ? (
+													<Badge variant="outline">Delegada</Badge>
+												) : null}
+											</Link>
+										</TableCell>
+										<TableCell
+											data-label="Identificación"
+											className="font-mono text-label"
+										>
+											{o.tax_id}
+										</TableCell>
+										<TableCell data-label="País">
+											<span className="inline-flex items-center gap-2">
+												<CountryCode code={o.country} />
+												<span className="text-muted-foreground">
+													{countryName(o.country)}
+												</span>
+											</span>
+										</TableCell>
+										<TableCell data-label="Prueba">
+											<CertificateBadge
+												certificate={o.certificates?.test ?? null}
+											/>
+										</TableCell>
+										<TableCell data-label="Producción">
+											<CertificateBadge
+												certificate={o.certificates?.prod ?? null}
+											/>
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					</TableCards>
 				)}
 			</Card>
 		</Page>

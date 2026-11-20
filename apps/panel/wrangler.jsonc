@@ -31,7 +31,7 @@
 	// What isn't secret. The secrets, with `bunx wrangler secret put <NAME>`
 	// from apps/panel, never here: DATABASE_URL (Neon's pooled string),
 	// BETTER_AUTH_SECRET, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET and
-	// RESEND_API_KEY (without it the sales e-mail goes to the logs). For
+	// RESEND_API_KEY (without it the panel's e-mails go to the logs). For
 	// `wrangler dev`, .dev.vars overrides these (.dev.vars.example).
 	"vars": {
 		// The panel's own origin, with https:// and without a trailing slash:

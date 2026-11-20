@@ -11,21 +11,22 @@ en Node: `bun run build` y `bun run start`).
 | API   | Dokploy, `api.sign.sello.tax`                                                     | `apps/api/compose.dokploy.yml`: el API (`apps/api/Containerfile`) y su Valkey, con cada push a `main` |
 | Panel | Cloudflare Workers, `sello-sign-panel`, en `sign.sello.tax` (desde el 2026-11-19) | `apps/panel`, con Workers Builds en cada push a `main` («Cada cambio»; `wrangler.jsonc`)              |
 
-## Lo que decide el dueño antes
+## La dirección del panel
 
-- **La dirección del panel.** O reemplaza al Worker viejo, `sello-sign`, en
-  `sign.sello.tax`, o empieza en un nombre nuevo (por ejemplo,
-  `panel.sign.sello.tax`). Se escribe en tres lugares que cambian juntos, al
-  principio de `apps/panel/wrangler.jsonc`: `name`, `routes` y
-  `vars.BETTER_AUTH_URL`; y, fuera de él, en `PANEL_URL` del API y en el
-  cliente del IdP. Mientras `BETTER_AUTH_URL` está vacío, el Worker responde
-  `500`.
-- **Lo que deja de existir si reemplaza a `sign.sello.tax`:** el Worker viejo
-  sirve también su API, `https://sign.sello.tax/api`, con la que firma hoy la
-  plataforma de Sello. Mientras la plataforma no firme con el API nuevo
-  (`-sign https://api.sign.sello.tax`, con las claves del espacio de la
-  plataforma, más abajo), mover el dominio la deja sin firmar. Los datos de
-  `../sign-old` no se copian (`docs/rebuild.md`, «Fase 2»).
+Decidido y publicado el 2026-11-19: el panel reemplaza al Worker viejo,
+`sello-sign`, en `sign.sello.tax`. La dirección se escribe en tres lugares que
+cambian juntos, al principio de `apps/panel/wrangler.jsonc`: `name`, `routes`
+y `vars.BETTER_AUTH_URL`; y, fuera de él, en `PANEL_URL` del API y en el
+cliente del IdP. Mientras `BETTER_AUTH_URL` está vacío, el Worker responde
+`500`. El Worker viejo servía también su API, `https://sign.sello.tax/api`;
+la plataforma de Sello ya firma con el nuevo (`-sign https://api.sign.sello.tax`,
+con las claves del espacio de la plataforma, más abajo). Los datos de
+`../sign-old` no se copian (`docs/rebuild.md`, «Fase 2»).
+
+El Worker viejo, `sello-sign`, sigue existiendo, sin dominio, hasta que el
+dueño decida borrarlo: ya sin su cron (`0 8 * * *`) y con su configuración de
+Workers Builds todavía atada al repositorio de antes,
+`weareproxima/sello-sign-old`, así que este repositorio no lo publica.
 
 ## Las variables
 
@@ -38,18 +39,19 @@ llamada del panel al API responde `401`.
 
 ### API (Environment del servicio en Dokploy)
 
-| Variable                      | Obligatoria      | Para qué                                                                                                                                                                                                                        |
-| ----------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                | sí               | La cadena **directa** de Neon (sin `-pooler`), con `?sslmode=require`. El API tiene su propio pool y toma _advisory locks_ de sesión (las migraciones, el reporte de uso), que el modo de transacción de PgBouncer no conserva. |
-| `SIGN_SECRETS_KEY`            | sí               | 32 bytes en base64, `openssl rand -base64 32`: AES-256-GCM del material de los certificados. Se guarda también fuera del servidor (el gestor de contraseñas del equipo): **perderla es perder todos los certificados**.         |
-| `SIGN_SECRETS_KEY_PREVIOUS`   | no               | La clave anterior, solo mientras se rota.                                                                                                                                                                                       |
-| `PANEL_URL`                   | sí               | El origen del panel (arriba).                                                                                                                                                                                                   |
-| `API_URL`                     | no               | `https://api.sign.sello.tax` por defecto en el compose.                                                                                                                                                                         |
-| `SIGN_PLATFORM_WORKSPACE_ID`  | sí (con `CLOUD`) | El espacio de la plataforma de Sello (más abajo). El compose pone `CLOUD=true`.                                                                                                                                                 |
-| `BILLING_URL`                 | no               | `https://billing.sello.tax` por defecto.                                                                                                                                                                                        |
-| `BILLING_TOKEN`               | sí               | Sign → cobro (activar un espacio, reportar el uso cada hora). Es el valor de `BILLING_SIGN_TOKEN` del cobro de Sello.                                                                                                           |
-| `BILLING_PUSH_TOKEN`          | sí               | Cobro → Sign (`PUT /api/billing/organizations/{id}`). Es el valor de `SIGN_PUSH_TOKEN` del cobro. Distinto del anterior: el API no arranca si son iguales.                                                                      |
-| `SIGN_COUNTRIES`, `LOG_LEVEL` | no               | Los países que se ofrecen (`SV,DO,CR,PA,GT`) y el nivel de los logs (`info`).                                                                                                                                                   |
+| Variable                                                | Obligatoria          | Para qué                                                                                                                                                                                                                          |
+| ------------------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                          | sí                   | La cadena **directa** de Neon (sin `-pooler`), con `?sslmode=require`. El API tiene su propio pool y toma _advisory locks_ de sesión (las migraciones, el reporte de uso), que el modo de transacción de PgBouncer no conserva.   |
+| `SIGN_SECRETS_KEY`                                      | sí                   | 32 bytes en base64, `openssl rand -base64 32`: AES-256-GCM del material de los certificados. Se guarda también fuera del servidor (el gestor de contraseñas del equipo): **perderla es perder todos los certificados**.           |
+| `SIGN_SECRETS_KEY_PREVIOUS`                             | no                   | La clave anterior, solo mientras se rota.                                                                                                                                                                                         |
+| `PANEL_URL`                                             | sí                   | El origen del panel (arriba).                                                                                                                                                                                                     |
+| `API_URL`                                               | no                   | `https://api.sign.sello.tax` por defecto en el compose.                                                                                                                                                                           |
+| `SIGN_PLATFORM_WORKSPACE_ID`                            | sí (con `CLOUD`)     | El espacio de la plataforma de Sello (más abajo). El compose pone `CLOUD=true`.                                                                                                                                                   |
+| `BILLING_URL`                                           | no                   | `https://billing.sello.tax` por defecto.                                                                                                                                                                                          |
+| `BILLING_TOKEN`                                         | sí                   | Sign → cobro (activar un espacio, reportar el uso cada hora). Es el valor de `BILLING_SIGN_TOKEN` del cobro de Sello.                                                                                                             |
+| `BILLING_PUSH_TOKEN`                                    | sí                   | Cobro → Sign (`PUT /api/billing/organizations/{id}`). Es el valor de `SIGN_PUSH_TOKEN` del cobro. Distinto del anterior: el API no arranca si son iguales.                                                                        |
+| `SIGN_COUNTRIES`, `LOG_LEVEL`                           | no                   | Los países que se ofrecen (`SV,DO,CR,PA,GT`) y el nivel de los logs (`info`).                                                                                                                                                     |
+| `SIGN_RATE_LIMIT_PER_MINUTE`, `SIGN_LOG_RETENTION_DAYS` | **nunca en la nube** | Los límites de un espacio sin plan en una instalación propia. En la nube, los de cada espacio los empuja el cobro, y el de la plataforma de Sello no tiene plan: con ellas, su firma quedaría limitada y su registro se borraría. |
 
 `REDIS_URL` (el Valkey del compose), `CLOUD=true`, `ADDR=0.0.0.0:8080` y
 `LOG_FORMAT=json` los fijan el compose y la imagen. `BILLING_TOKEN` y
@@ -67,7 +69,9 @@ En `vars` de `apps/panel/wrangler.jsonc`, versionados: `BETTER_AUTH_URL`,
 origen al que `POST /sales-inquiry` responde con CORS), `SALES_EMAIL`
 (`sales@sign.sello.tax`, adonde llegan las solicitudes del diálogo de ventas)
 y `EMAIL_FROM` (`Sello Sign <noreply@sign.sello.tax>`, de un dominio
-verificado en Resend). Un `wrangler deploy` reemplaza las variables del
+verificado en Resend: `sign.sello.tax` lo está desde el 2026-11-20, además de
+`sello.tax`). El reenvío de `sales@sign.sello.tax` está pendiente: espera a
+que el dueño elija el buzón de destino. Un `wrangler deploy` reemplaza las variables del
 panel de Cloudflare por estas.
 
 Secretos, con `bunx wrangler secret put <NOMBRE>` desde `apps/panel` (después
@@ -105,8 +109,15 @@ conexión.
 ### 1. Neon: la base y sus migraciones
 
 1. En el proyecto de Neon (el de Sello u otro), una base `sign` con su rol
-   (dueño de la base: crea el esquema `auth`). Antes de cada despliegue que
-   migre, una rama de respaldo (`Branches › Create branch`), para volver
+   (dueño de la base: crea el esquema `auth`). En la nube, el proyecto
+   `sello-sign` (`aws-us-east-1`), la base `sign` y su rol `sign_app`, de
+   mínimo privilegio (sin `CREATEDB`, `CREATEROLE` ni `neon_superuser`),
+   creado por SQL con el rol de la consola (`neondb_owner`). Para que ese rol
+   pueda darle la base (`ALTER DATABASE sign OWNER TO sign_app`), antes tiene
+   que ser miembro del nuevo: `GRANT sign_app TO neondb_owner`. Las dos
+   piezas entran con `sign_app`: el API y la migración del panel, con la
+   cadena directa; el Worker, con la de `-pooler`. Antes de cada despliegue
+   que migre, una rama de respaldo (`Branches › Create branch`), para volver
    atrás.
 2. Las tablas del API, con la imagen que se va a publicar (así migra lo de ese
    commit, no lo de un árbol local con cambios):
@@ -137,7 +148,11 @@ conexión.
 3. Environment: las variables de arriba. El espacio de la plataforma todavía no
    existe, así que el primer despliegue va con
    `SIGN_PLATFORM_WORKSPACE_ID=pending` (el API arranca y lo avisa en sus
-   logs).
+   logs). Dokploy no devuelve el Environment (su API y su MCP lo leen como
+   `[REDACTED]`) y guardarlo lo reemplaza entero: la fuente de verdad de
+   estas variables vive fuera de Dokploy, en el gestor de contraseñas del
+   equipo, y un cambio se hace reenviando el Environment completo desde
+   ahí.
 4. Deploy, y `curl -s https://api.sign.sello.tax/health` → `{"status":"ok"}`.
    Después, cada push a `main` lo vuelve a desplegar solo (_autoDeploy_).
 
@@ -303,15 +318,16 @@ Desde el 2026-11-20 un push a `main` publica solo lo que cambió:
   después de `DATABASE_URL='<cadena directa>' bun run db:migrate`.
 
 - **El API**, con el servicio Compose «Sign API» de Dokploy, que se despliega
-  con cada push a `main` (_autoDeploy_, sin filtro de rutas) y migra al
-  arrancar.
+  con cada push a `main` (_autoDeploy_, sin filtro de rutas: también uno que
+  solo cambia la documentación vuelve a construir y desplegar el API) y migra
+  al arrancar.
 
 Fusionar es publicar: un cambio que el panel y el API necesitan en orden (el
 API primero, si el panel llama a algo nuevo) va en dos commits, empujados uno
 tras otro.
 
-El Worker viejo, `sello-sign` (`../sign-old`), conserva su configuración de
-Workers Builds, atada al repositorio de antes: este repositorio no lo publica.
+El Worker viejo, `sello-sign` (`../sign-old`), no lo publica este
+repositorio («La dirección del panel»).
 
 ## Volver atrás
 

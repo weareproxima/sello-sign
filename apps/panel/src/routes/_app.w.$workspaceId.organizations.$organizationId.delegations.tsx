@@ -31,6 +31,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '#/components/ui/table'
+import { TableCards } from '#/components/table-cards'
 import {
 	Tooltip,
 	TooltipContent,
@@ -128,76 +129,84 @@ function Delegations() {
 					description="Ningún otro espacio firma con esta organización."
 				/>
 			) : (
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Espacio</TableHead>
-							<TableHead>Permisos</TableHead>
-							<TableHead>Desde</TableHead>
-							{canManage ? (
-								<TableHead className="text-right">
-									<span className="sr-only">Acciones</span>
-								</TableHead>
-							) : null}
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{delegations.data.map((d) => (
-							<TableRow key={d.id}>
-								<TableCell>
-									<span className="font-medium">{d.workspace_name}</span>
-									{d.locked ? (
-										<Badge variant="secondary" className="ms-2">
-											<LockIcon data-icon="inline-start" />
-											Plataforma de Sello
-										</Badge>
-									) : null}
-									<Mono className="block text-muted-foreground">
-										{d.workspace_id}
-									</Mono>
-								</TableCell>
-								<TableCell className="whitespace-normal">
-									<div className="flex flex-wrap gap-1">
-										{d.scopes.map((s) => (
-											<Badge key={s} variant="outline">
-												{DELEGATION_SCOPE_LABELS[s]?.label ?? s}
-											</Badge>
-										))}
-									</div>
-								</TableCell>
-								<TableCell className="text-meta text-muted-foreground">
-									{formatDate(d.created_at)}
-								</TableCell>
+				<TableCards>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Espacio</TableHead>
+								<TableHead>Permisos</TableHead>
+								<TableHead>Desde</TableHead>
 								{canManage ? (
-									<TableCell className="text-right">
-										{d.locked ? (
-											<Tooltip>
-												<TooltipTrigger render={<span tabIndex={0} />}>
-													<Button variant="ghost" size="sm" disabled>
-														Quitar
-													</Button>
-												</TooltipTrigger>
-												<TooltipContent className="max-w-xs">
-													Es de la plataforma de Sello, que emite con esta
-													organización. Solo ella la quita, cuando la
-													organización deja de emitir con Sello.
-												</TooltipContent>
-											</Tooltip>
-										) : (
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => setRemoving(d)}
-											>
-												Quitar
-											</Button>
-										)}
-									</TableCell>
+									<TableHead className="text-right">
+										<span className="sr-only">Acciones</span>
+									</TableHead>
 								) : null}
 							</TableRow>
-						))}
-					</TableBody>
-				</Table>
+						</TableHeader>
+						<TableBody>
+							{delegations.data.map((d) => (
+								<TableRow key={d.id}>
+									<TableCell>
+										<span className="font-medium">{d.workspace_name}</span>
+										{d.locked ? (
+											<Badge variant="secondary" className="ms-2">
+												<LockIcon data-icon="inline-start" />
+												Plataforma de Sello
+											</Badge>
+										) : null}
+										<Mono className="block text-muted-foreground">
+											{d.workspace_id}
+										</Mono>
+									</TableCell>
+									<TableCell
+										data-label="Permisos"
+										className="whitespace-normal"
+									>
+										<div className="flex flex-wrap gap-1">
+											{d.scopes.map((s) => (
+												<Badge key={s} variant="outline">
+													{DELEGATION_SCOPE_LABELS[s]?.label ?? s}
+												</Badge>
+											))}
+										</div>
+									</TableCell>
+									<TableCell
+										data-label="Desde"
+										className="text-meta text-muted-foreground"
+									>
+										{formatDate(d.created_at)}
+									</TableCell>
+									{canManage ? (
+										<TableCell data-actions className="text-right">
+											{d.locked ? (
+												<Tooltip>
+													<TooltipTrigger render={<span tabIndex={0} />}>
+														<Button variant="ghost" size="sm" disabled>
+															Quitar
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent className="max-w-xs">
+														Es de la plataforma de Sello, que emite con esta
+														organización. Solo ella la quita, cuando la
+														organización deja de emitir con Sello.
+													</TooltipContent>
+												</Tooltip>
+											) : (
+												<Button
+													variant="ghost"
+													size="sm"
+													onClick={() => setRemoving(d)}
+												>
+													Quitar
+												</Button>
+											)}
+										</TableCell>
+									) : null}
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				</TableCards>
 			)}
 
 			{delegations.data?.some((d) => d.locked) ? (

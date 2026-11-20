@@ -3,6 +3,7 @@ import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { authOptions } from './auth-options'
 import { readConfig } from './config'
 import { Database } from './database'
+import { deliverEmail } from './email'
 import { onWorkers, serverEnv } from './env'
 
 /**
@@ -25,10 +26,9 @@ function createAuth() {
 	const options = authOptions({
 		config,
 		database: new Database(config.databaseUrl, { perRequest: workers }),
-		// No mail provider yet: the link goes to the server's console.
-		sendEmail: async ({ to, subject, text }) => {
-			console.info(`[email] to=${to} subject=${subject}\n${text}`)
-		},
+		// Resend with RESEND_API_KEY and EMAIL_FROM; without the key, the
+		// server's console (`lib/email.ts`).
+		sendEmail: (message) => deliverEmail(message, config.email),
 	})
 	return betterAuth({
 		...options,

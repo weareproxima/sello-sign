@@ -1,0 +1,67 @@
+/* A long table on a phone: each row a card, each cell a line with its label
+   (`data-label` on the cell; the title cell goes without one, first and on its
+   own), instead of a table that scrolls sideways. From `md` on, the table is
+   a table. Wrap the `Table` in `.table-cards` (`components/table-cards.tsx`).
+   The panel's own sheet: Sello's tokens, never a value written here. */
+@media (width < 48rem) {
+	.table-cards [data-slot='table-container'] {
+		overflow: visible;
+	}
+	.table-cards table,
+	.table-cards tbody {
+		display: block;
+	}
+	.table-cards thead {
+		display: none;
+	}
+	.table-cards tbody {
+		display: flex;
+		flex-direction: column;
+		gap: calc(var(--spacing) * 2);
+	}
+	.table-cards tr {
+		display: flex;
+		flex-direction: column;
+		gap: calc(var(--spacing) * 2);
+		border: 0;
+		border-radius: var(--radius-panel);
+		background: var(--fill);
+		padding: calc(var(--spacing) * 4);
+	}
+	.table-cards tr:hover {
+		background: var(--fill-hover);
+	}
+	.table-cards td {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: calc(var(--spacing) * 3);
+		padding: 0;
+		max-width: none;
+		white-space: normal;
+		text-align: end;
+		overflow-wrap: anywhere;
+	}
+	.table-cards td > * {
+		min-width: 0;
+	}
+	.table-cards td[data-label]::before {
+		content: attr(data-label);
+		flex-shrink: 0;
+		color: var(--text-2);
+		font-family: var(--font-sans);
+		font-size: var(--text-meta);
+		line-height: var(--text-meta--line-height);
+		text-align: start;
+	}
+	/* The row's title: alone on its line, at the start. */
+	.table-cards td:not([data-label]):not([data-actions]) {
+		display: block;
+		order: -1;
+		text-align: start;
+	}
+	/* Its actions: at the end, after the rest. */
+	.table-cards td[data-actions] {
+		justify-content: flex-end;
+	}
+}

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -283,8 +284,9 @@ func (s *Server) updateWorkspace(w http.ResponseWriter, r *http.Request, c *call
 		return
 	}
 	var body struct {
-		Name           *string        `json:"name"`
-		DefaultCountry optionalString `json:"default_country"`
+		Name              *string        `json:"name"`
+		DefaultCountry    optionalString `json:"default_country"`
+		RequestsPerMinute optionalInt    `json:"requests_per_minute"`
 	}
 	if p := decode(w, r, &body); p != nil {
 		writeProblem(w, p)
@@ -306,6 +308,18 @@ func (s *Server) updateWorkspace(w http.ResponseWriter, r *http.Request, c *call
 			return
 		}
 		patch.DefaultCountry = &country
+	}
+	if body.RequestsPerMinute.Set {
+		rate := body.RequestsPerMinute.Value
+		if rate != nil && (*rate < 1 || *rate > maxRequestsPerMinute) {
+			writeProblem(w, invalid("«requests_per_minute» es un número de 1 a 1000000, o null."))
+			return
+		}
+		if ceiling := c.ws.Limits.RequestsPerMinute; rate != nil && ceiling != nil && *rate > *ceiling {
+			writeProblem(w, invalid(fmt.Sprintf("«requests_per_minute» no puede pasar el límite del plan del espacio, %d por minuto.", *ceiling)))
+			return
+		}
+		patch.OwnRequestsPerMinute = &rate
 	}
 	ws, err := s.Store.UpdateWorkspace(r.Context(), c.ws.ID, patch)
 	if err != nil {

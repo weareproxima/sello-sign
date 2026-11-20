@@ -17,13 +17,15 @@ type workspaceView struct {
 	SelloWorkspaceID *string      `json:"sello_workspace_id"`
 	Closed           bool         `json:"closed"`
 	Limits           store.Limits `json:"limits"`
-	CreatedAt        time.Time    `json:"created_at"`
+	// RequestsPerMinute is the signing rate the space set for itself.
+	RequestsPerMinute *int      `json:"requests_per_minute"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 func workspaceOf(w store.Workspace, role model.Role) workspaceView {
 	v := workspaceView{
 		ID: w.ID, Name: w.Name, Plan: w.Plan, DefaultCountry: w.DefaultCountry, SelloWorkspaceID: w.SelloWorkspaceID,
-		Closed: w.Closed(), Limits: w.Limits, CreatedAt: utc(w.CreatedAt),
+		Closed: w.Closed(), Limits: w.Limits, RequestsPerMinute: w.OwnRequestsPerMinute, CreatedAt: utc(w.CreatedAt),
 	}
 	if role != "" {
 		v.Role = &role
@@ -138,15 +140,18 @@ type apiKeyView struct {
 	Scopes         []model.Scope     `json:"scopes"`
 	OrganizationID *string           `json:"organization_id"`
 	Prefix         string            `json:"prefix"`
-	LastUsedAt     *time.Time        `json:"last_used_at"`
-	CreatedAt      time.Time         `json:"created_at"`
+	// RequestsPerMinute is the key's own signing rate; nil is none.
+	RequestsPerMinute *int       `json:"requests_per_minute"`
+	LastUsedAt        *time.Time `json:"last_used_at"`
+	CreatedAt         time.Time  `json:"created_at"`
 	// Key is the key itself, only when it's created.
 	Key string `json:"key,omitempty"`
 }
 
 func apiKeyOf(k store.APIKey) apiKeyView {
 	return apiKeyView{ID: k.ID, Name: k.Name, Environment: k.Environment, Scopes: nonNil(k.Scopes),
-		OrganizationID: k.OrganizationID, Prefix: k.Prefix, LastUsedAt: utcp(k.LastUsedAt), CreatedAt: utc(k.CreatedAt)}
+		OrganizationID: k.OrganizationID, Prefix: k.Prefix, RequestsPerMinute: k.RequestsPerMinute,
+		LastUsedAt: utcp(k.LastUsedAt), CreatedAt: utc(k.CreatedAt)}
 }
 
 type signatureView struct {

@@ -30,12 +30,13 @@ el plan y su estado, en [`docs/rebuild.md`](docs/rebuild.md).
     `internal/auth` (las claves y el token del panel), `internal/secrets`
     (AES-256-GCM), `internal/store` (Postgres y sus migraciones, que se
     aplican al arrancar), `internal/cache` (las claves en Valkey; el material
-    descifrado, solo en memoria), `internal/billing` (la nube) e
-    `internal/httpapi` (las rutas, con una copia de `contracts/openapi.yaml`
+    descifrado, solo en memoria), `internal/billing` (la nube),
+    `internal/ratelimit` (las firmas por minuto), `internal/retention` (lo
+    vencido del registro de firmas) e `internal/httpapi` (las rutas, con una copia de `contracts/openapi.yaml`
     que refresca `go generate ./internal/httpapi`, y una prueba que compara
     las rutas con el contrato).
   - `cmd/api`: el servidor y, sin panel, una consola (`migrate`,
-    `workspace create`, `member add`, `key create`).
+    `workspace create`, `workspace limits`, `member add`, `key create`).
 - `apps/panel`: el panel, TanStack Start (React, TanStack Router y Query,
   Tailwind y shadcn), en `127.0.0.1:4440` (`sign.sello.test`). Su servidor
   lleva better-auth: las cuentas, las sesiones y el token con el que el panel
@@ -70,7 +71,9 @@ en Go) y las de better-auth, del panel, en el esquema `auth`.
   AES-256-GCM para el material de los certificados), `PANEL_URL` (el `iss` del
   token y su JWKS), `API_URL` (su `aud`), `SIGN_COUNTRIES` (los países que se
   ofrecen; por defecto `SV,DO,CR,PA,GT`, los que ya se probaron), `CLOUD`
-  (`true` en `sign.sello.tax`) y, en la nube, `SIGN_PLATFORM_WORKSPACE_ID` (el
+  (`true` en `sign.sello.tax`), `SIGN_RATE_LIMIT_PER_MINUTE` y
+  `SIGN_LOG_RETENTION_DAYS` (los límites de los espacios sin plan; vacías,
+  ninguno) y, en la nube, `SIGN_PLATFORM_WORKSPACE_ID` (el
   espacio de Sello), `BILLING_URL`, `BILLING_TOKEN` y `BILLING_PUSH_TOKEN`.
 - Panel: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (= `PANEL_URL`),
   `API_URL`, `CLOUD` y, para entrar con un proveedor OIDC externo (en la nube,

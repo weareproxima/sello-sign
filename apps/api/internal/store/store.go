@@ -45,6 +45,22 @@ var (
 type Store struct {
 	pool *pgxpool.Pool
 	now  func() time.Time
+	// defaults fill the limits a space without a plan leaves NULL.
+	defaults Defaults
+}
+
+// Defaults are the limits of an install for the spaces without a plan (a
+// self-hosted install's, or one made with the console): what a space's row
+// leaves NULL. In the cloud, billing pushes every space's.
+type Defaults struct {
+	RequestsPerMinute *int
+	RetentionDays     *int
+}
+
+// WithDefaults makes d the install's limits.
+func (s *Store) WithDefaults(d Defaults) *Store {
+	s.defaults = d
+	return s
 }
 
 // Open connects to url (DATABASE_URL) and checks it answers.
@@ -146,7 +162,8 @@ func trim[T any](items []T, p Page, id func(T) string) ([]T, *string) {
 	return items, &c
 }
 
-// Limits are a plan's; nil is none.
+// Limits are a plan's (in a space without a plan, the install's and the
+// console's); nil is none.
 type Limits struct {
 	Organizations     *int `json:"organizations"`
 	ProdSignatures    *int `json:"prod_signatures"`
@@ -166,9 +183,12 @@ type Workspace struct {
 	SelloWorkspaceID *string
 	Plan             *string
 	Limits           Limits
-	BillingVersion   int64
-	ClosedAt         *time.Time
-	CreatedAt        time.Time
+	// OwnRequestsPerMinute is the signing rate the space set for itself,
+	// below Limits.RequestsPerMinute; nil is that ceiling.
+	OwnRequestsPerMinute *int
+	BillingVersion       int64
+	ClosedAt             *time.Time
+	CreatedAt            time.Time
 }
 
 // Closed says Sello deleted the space's organization.
@@ -233,8 +253,10 @@ type APIKey struct {
 	Name           string
 	Scopes         []model.Scope
 	Prefix         string
-	LastUsedAt     *time.Time
-	CreatedAt      time.Time
+	// RequestsPerMinute is the key's own signing rate; nil is none.
+	RequestsPerMinute *int
+	LastUsedAt        *time.Time
+	CreatedAt         time.Time
 }
 
 // Member is a person in a space.

@@ -14,6 +14,8 @@ import {
 	MoonIcon,
 	PlusIcon,
 	SettingsIcon,
+	ShieldCheckIcon,
+	UserIcon,
 	SunIcon,
 	UsersIcon,
 } from 'lucide-react'
@@ -45,6 +47,7 @@ type NavItem = {
 		| '/w/$workspaceId/api-keys'
 		| '/w/$workspaceId/settings'
 		| '/w/$workspaceId/members'
+		| '/w/$workspaceId/verify'
 	label: string
 	icon: React.ComponentType<{ className?: string }>
 	exact?: boolean
@@ -66,6 +69,11 @@ const MAIN: NavItem[] = [
 		to: '/w/$workspaceId/signatures',
 		label: 'Registro de firmas',
 		icon: FileSignatureIcon,
+	},
+	{
+		to: '/w/$workspaceId/verify',
+		label: 'Verificar una firma',
+		icon: ShieldCheckIcon,
 	},
 ]
 
@@ -195,7 +203,18 @@ function WorkspaceSwitcher({
 	)
 }
 
-function AccountMenu({ name, email }: { name: string; email: string }) {
+function AccountMenu({
+	name,
+	email,
+	workspaceId,
+	onNavigate,
+}: {
+	name: string
+	email: string
+	workspaceId: string
+	onNavigate?: () => void
+}) {
+	const navigate = useNavigate()
 	const router = useRouter()
 	const queryClient = useQueryClient()
 	const [theme, setTheme] = React.useState<Theme>('system')
@@ -260,6 +279,18 @@ function AccountMenu({ name, email }: { name: string; email: string }) {
 					</DropdownMenuRadioGroup>
 				</DropdownMenuGroup>
 				<DropdownMenuSeparator />
+				<DropdownMenuItem
+					onClick={() => {
+						onNavigate?.()
+						void navigate({
+							to: '/w/$workspaceId/account',
+							params: { workspaceId },
+						})
+					}}
+				>
+					<UserIcon />
+					Su cuenta
+				</DropdownMenuItem>
 				<DropdownMenuItem onClick={signOut}>
 					<LogOutIcon />
 					Cerrar sesión
@@ -307,7 +338,12 @@ export function AppShell({
 					onNavigate={onNavigate}
 				/>
 			</div>
-			<AccountMenu name={user.name} email={user.email} />
+			<AccountMenu
+				name={user.name}
+				email={user.email}
+				workspaceId={workspaceId}
+				onNavigate={onNavigate}
+			/>
 		</div>
 	)
 

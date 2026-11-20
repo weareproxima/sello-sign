@@ -24,6 +24,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '#/components/ui/table'
+import { TableCards } from '#/components/table-cards'
 import { FormError, Mono, Page, PageHeader } from '#/components/page'
 import {
 	api,
@@ -194,52 +195,65 @@ function Signatures() {
 					)
 				) : (
 					<>
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Organización</TableHead>
-									<TableHead>Tipo</TableHead>
-									<TableHead>Documento</TableHead>
-									<TableHead>Ambiente</TableHead>
-									<TableHead>Origen</TableHead>
-									<TableHead className="text-right">Fecha</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{entries.map((entry) => (
-									<TableRow
-										key={entry.id}
-										className="cursor-pointer hover:bg-fill"
-										onClick={() => setSearch({ entry: entry.id })}
-									>
-										<TableCell className="font-medium">
-											{entry.organization_name}
-										</TableCell>
-										<TableCell className="font-mono text-label">
-											{entry.document_type ?? '—'}
-										</TableCell>
-										<TableCell className="max-w-48 truncate font-mono text-label">
-											{entry.document_id ?? '—'}
-										</TableCell>
-										<TableCell>
-											<Badge
-												variant={
-													entry.environment === 'prod' ? 'default' : 'secondary'
-												}
-											>
-												{ENVIRONMENT_LABELS[entry.environment]}
-											</Badge>
-										</TableCell>
-										<TableCell>
-											<Origin entry={entry} workspaceId={workspaceId} />
-										</TableCell>
-										<TableCell className="text-right text-meta text-muted-foreground">
-											{formatDateTime(entry.created_at)}
-										</TableCell>
+						<TableCards>
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead>Organización</TableHead>
+										<TableHead>Tipo</TableHead>
+										<TableHead>Documento</TableHead>
+										<TableHead>Ambiente</TableHead>
+										<TableHead>Origen</TableHead>
+										<TableHead className="text-right">Fecha</TableHead>
 									</TableRow>
-								))}
-							</TableBody>
-						</Table>
+								</TableHeader>
+								<TableBody>
+									{entries.map((entry) => (
+										<TableRow
+											key={entry.id}
+											className="cursor-pointer hover:bg-fill"
+											onClick={() => setSearch({ entry: entry.id })}
+										>
+											<TableCell className="font-medium">
+												{entry.organization_name}
+											</TableCell>
+											<TableCell
+												data-label="Tipo"
+												className="font-mono text-label"
+											>
+												{entry.document_type ?? '—'}
+											</TableCell>
+											<TableCell
+												data-label="Documento"
+												className="max-w-48 truncate font-mono text-label"
+											>
+												{entry.document_id ?? '—'}
+											</TableCell>
+											<TableCell data-label="Ambiente">
+												<Badge
+													variant={
+														entry.environment === 'prod'
+															? 'default'
+															: 'secondary'
+													}
+												>
+													{ENVIRONMENT_LABELS[entry.environment]}
+												</Badge>
+											</TableCell>
+											<TableCell data-label="Origen">
+												<Origin entry={entry} workspaceId={workspaceId} />
+											</TableCell>
+											<TableCell
+												data-label="Fecha"
+												className="text-right text-meta text-muted-foreground"
+											>
+												{formatDateTime(entry.created_at)}
+											</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</TableCards>
 						<div className="flex items-center justify-between">
 							<p className="text-meta text-muted-foreground">
 								{formatNumber(entries.length)} firmas

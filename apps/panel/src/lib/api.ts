@@ -63,6 +63,37 @@ export type Member = {
 	role: Role
 }
 
+/** Who sent an invitation. */
+export type InvitedBy = {
+	user_id: string
+	email: string | null
+	name: string | null
+}
+
+export type Invitation = {
+	id: string
+	email: string
+	role: Role
+	status: 'pending' | 'expired'
+	invited_by: InvitedBy
+	expires_at: string
+	created_at: string
+}
+
+/** With its token, only when it's created. */
+export type CreatedInvitation = Invitation & { token: string }
+
+/** What an invitation says to whoever holds its link. */
+export type InvitationLookup = {
+	workspace_id: string
+	workspace_name: string
+	email: string
+	role: Role
+	status: 'pending' | 'expired' | 'accepted'
+	invited_by: InvitedBy
+	expires_at: string
+}
+
 export type UsageEntry = {
 	month: string
 	environment: Environment
@@ -324,6 +355,35 @@ export function createApi(transport: Transport) {
 		) => request<Workspace>(w(id), { method: 'PATCH', body }),
 		members: (id: string) =>
 			request<Member[] | { items: Member[] }>(`${w(id)}/members`).then(itemsOf),
+		updateMemberRole: (id: string, userId: string, role: Role) =>
+			request<Member>(`${w(id)}/members/${encodeURIComponent(userId)}`, {
+				method: 'PATCH',
+				body: { role },
+			}),
+		invitations: (id: string) =>
+			request<{ items: Invitation[] }>(`${w(id)}/invitations`).then(itemsOf),
+		/** Answers the token once; the panel's server sends it by e-mail
+		 * (`server/invitations.ts`). */
+		createInvitation: (id: string, body: { email: string; role: Role }) =>
+			request<CreatedInvitation>(`${w(id)}/invitations`, {
+				method: 'POST',
+				body,
+			}),
+		revokeInvitation: (id: string, invitationId: string) =>
+			request<void>(
+				`${w(id)}/invitations/${encodeURIComponent(invitationId)}`,
+				{ method: 'DELETE' }
+			),
+		lookupInvitation: (token: string) =>
+			request<InvitationLookup>('/invitation-lookups', {
+				method: 'POST',
+				body: { token },
+			}),
+		acceptInvitation: (token: string) =>
+			request<Workspace>('/invitation-acceptances', {
+				method: 'POST',
+				body: { token },
+			}),
 		usage: (id: string) => request<Usage>(`${w(id)}/usage`),
 
 		organizations: (workspace: string, relation?: Relation) =>
@@ -539,6 +599,20 @@ const PROBLEMS: Record<string, string> = {
 	'workspace-not-found': 'El espacio no existe o ya no tiene acceso a él.',
 	'workspace-closed': 'Este espacio está cerrado.',
 	'workspace-full': 'El plan de esta organización ya no admite más miembros.',
+	'members-managed-by-sello':
+		'Los miembros de este espacio se invitan y cambian de rol en su cuenta de Sello.',
+	'member-not-found': 'Esa persona ya no es miembro del espacio.',
+	'already-member': 'Esa persona ya es miembro del espacio.',
+	'last-owner':
+		'El espacio se quedaría sin propietario. Haga propietario a otra persona antes.',
+	'invitation-not-found': 'La invitación no existe o se revocó.',
+	'invitation-exists':
+		'Ese correo ya tiene una invitación pendiente. Revóquela antes de enviar otra.',
+	'invitation-expired':
+		'La invitación venció. Pida otra a quien administra el espacio.',
+	'invitation-used': 'Otra cuenta ya aceptó esta invitación.',
+	'invitation-email-mismatch':
+		'La invitación es para otro correo. Inicie sesión con la cuenta de ese correo.',
 	'ask-admin':
 		'Solo quien administra la organización puede empezar a usar Sello Sign con ella.',
 	'sello-workspace-linked': 'Esa organización de Sello ya está vinculada.',

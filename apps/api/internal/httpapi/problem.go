@@ -3,6 +3,9 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"time"
+
+	"proxima.la/sello/sign/internal/model"
 )
 
 // Problem is an error as the API answers it: application/problem+json (RFC
@@ -12,6 +15,12 @@ type Problem struct {
 	Title  string `json:"title"`
 	Status int    `json:"status"`
 	Detail string `json:"detail,omitempty"`
+	// The extensions of the limits' problems (rate-limited,
+	// monthly-limit-reached, organization-limit-reached).
+	Limit       *int              `json:"limit,omitempty"`
+	AppliesTo   string            `json:"applies_to,omitempty"`
+	Environment model.Environment `json:"environment,omitempty"`
+	ResetsAt    *time.Time        `json:"resets_at,omitempty"`
 }
 
 // UnknownOrganizationType is the type of the 404 billing reads as «Sign

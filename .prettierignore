@@ -2,3 +2,5 @@ apps/panel/src/routeTree.gen.ts
 bun.lock
 apps/api/internal/**/testdata
 .wrangler
+# A byte-for-byte copy of ../sign-old/src/lib/crypto/verify-client.ts (verify-client.test.ts)
+apps/panel/src/lib/verify-client.ts

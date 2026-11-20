@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -34,8 +35,14 @@ type Config struct {
 	// CORSOrigins may call the API from a browser: the panel's origin and
 	// CORS_ORIGINS.
 	CORSOrigins []string
-	LogFormat   string
-	LogLevel    string
+	// RequestsPerMinute and LogRetentionDays are the install's limits for
+	// the spaces without a plan (SIGN_RATE_LIMIT_PER_MINUTE,
+	// SIGN_LOG_RETENTION_DAYS); nil is none. In the cloud, billing pushes
+	// each space's.
+	RequestsPerMinute *int
+	LogRetentionDays  *int
+	LogFormat         string
+	LogLevel          string
 }
 
 // Billing says the cloud talks to Sello's billing.
@@ -75,6 +82,20 @@ func FromEnv(getenv func(string) string) (Config, error) {
 	}
 	if c.DatabaseURL == "" {
 		return Config{}, errors.New("config: DATABASE_URL is required")
+	}
+	for _, f := range []struct {
+		name string
+		dst  **int
+	}{{"SIGN_RATE_LIMIT_PER_MINUTE", &c.RequestsPerMinute}, {"SIGN_LOG_RETENTION_DAYS", &c.LogRetentionDays}} {
+		v := get(f.name, "")
+		if v == "" {
+			continue
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 1_000_000 {
+			return Config{}, fmt.Errorf("config: %s must be a whole number from 1 to 1000000, or empty for none", f.name)
+		}
+		*f.dst = &n
 	}
 	if c.SecretsKey == "" {
 		return Config{}, errors.New("config: SIGN_SECRETS_KEY is required (32 bytes in base64: openssl rand -base64 32)")

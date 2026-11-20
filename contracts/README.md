@@ -65,6 +65,42 @@ firmar de prueba desde el panel.
 Lo que se firma con una delegación cuenta en el espacio de la clave que firma,
 no en el del dueño de la organización.
 
+## Límites
+
+Los del plan del espacio (`limits` de `GET /workspaces/{w}`), que el API
+aplica. En la nube los empuja billing; en un espacio sin plan (una instalación
+propia) no hay ninguno salvo los que se configuren: los de la consola
+(`api workspace limits`) y, donde esta no puso uno, los de la instalación
+(`SIGN_RATE_LIMIT_PER_MINUTE` y `SIGN_LOG_RETENTION_DAYS`).
+
+- **Al firmar** (`POST /signatures` y la firma de prueba del panel), en el
+  espacio que firma, también con una organización delegada:
+  - **Por minuto:** el de la clave (`requests_per_minute` al crearla) y el del
+    espacio (el de su plan, `limits.requests_per_minute`, o uno menor que el
+    espacio se pone con `PATCH /workspaces/{w}` `{ "requests_per_minute" }`).
+    Ventanas fijas de un minuto, contadas en Valkey (sin `REDIS_URL`, en la
+    memoria de cada instancia). Pasarlo es `429 rate-limited`, con
+    `applies_to` (`api_key` o `workspace`), `limit` y `Retry-After`. Cada
+    firma lleva `X-RateLimit-Limit`, `X-RateLimit-Remaining` y
+    `X-RateLimit-Reset` del límite más estrecho, si alguno aplica.
+  - **Del mes** (UTC), por ambiente: se firma hasta `prod_hard_cap` o
+    `test_hard_cap` o, sin ellos, hasta la cuota (`prod_signatures`,
+    `test_signatures`). En un plan de pago, las de producción siguen hasta el
+    doble de la cuota y billing cobra el excedente con el uso que Sign le
+    reporta; las de prueba, hasta un 10 % más, sin cobrarse. Free se detiene
+    en la cuota, y Enterprise no tiene. Pasarlo es `429 monthly-limit-reached`,
+    con `environment`, `limit`, `resets_at` (el primer día del mes siguiente)
+    y `Retry-After`. Las firmas que están en curso a la vez pueden pasarlo por
+    unas pocas; billing nunca cobra más allá del tope.
+- **Organizaciones:** crear o traer una que pase `limits.organizations` es
+  `409 organization-limit-reached` (con `limit`).
+- **Miembros:** en la nube, son miembros los primeros `limits.members`
+  asientos que empuja billing.
+- **Retención:** el registro de firmas guarda cada una los días de
+  `limits.retention_days` del espacio que la hizo (`null`, sin plazo); una
+  tarea la borra cada hora, en una instancia a la vez. Lo contado en el uso se
+  queda.
+
 ## Espacios
 
 - `GET /me` (token) → `{ "user": { "id", "email", "name" }, "workspaces": [{ "id", "name", "role", "plan", "default_country", … }] }`:
@@ -79,8 +115,41 @@ no en el del dueño de la organización.
   miembro), `available` (puede abrirlo), `ask` (es `member`: lo abre quien la
   administra), `full` o `closed` (como `organizationOptions` de sign-old),
   con `workspace_id` (si es `open`) y `max_members` (si es `full`).
-- `GET /workspaces/{w}` y `PATCH /workspaces/{w}` (`{ "name", "default_country" }`).
+- `GET /workspaces/{w}` y `PATCH /workspaces/{w}`
+  (`{ "name", "default_country", "requests_per_minute" }`; el último, las
+  firmas por minuto que el espacio se pone, nunca por encima de las de su
+  plan, y `null` para volver a las del plan: «Límites»).
 - `GET /workspaces/{w}/members` → `[{ "user_id", "email", "name", "role" }]`.
+- `PATCH /workspaces/{w}/members/{user_id}` `{ "role" }` (token, `owner` o
+  `admin`): cambia el rol de un miembro. Solo un `owner` da o quita el rol
+  `owner`, y el espacio nunca se queda sin uno (`409 last-owner`).
+- **Invitaciones** (token, `owner` o `admin`; solo un `owner` invita a otro
+  `owner`):
+  - `GET /workspaces/{w}/invitations` → `[{ "id", "email", "role", "status", "invited_by": { "user_id", "email", "name" }, "expires_at", "created_at" }]`:
+    las que nadie aceptó ni se revocaron, `pending` o `expired`.
+  - `POST /workspaces/{w}/invitations` `{ "email", "role" }` → la invitación
+    con `"token"` (`sign_inv_…`), que se muestra una sola vez: el panel lo pone
+    en el enlace del correo que manda. Se guarda solo su SHA-256, como el de
+    una clave. Vale 7 días; una por correo y espacio
+    (`409 invitation-exists`), y a una vencida la reemplaza otra.
+    `409 already-member` si el correo ya es de un miembro, y
+    `409 workspace-full` si el plan no admite más.
+  - `DELETE /workspaces/{w}/invitations/{i}`: la revoca; su enlace deja de
+    valer.
+  - `POST /invitation-lookups` `{ "token" }` (el token de quien abrió el
+    enlace) → `{ "workspace_id", "workspace_name", "email", "role", "status", "invited_by", "expires_at" }`,
+    para mostrarla antes de aceptarla.
+  - `POST /invitation-acceptances` `{ "token" }` → el espacio, con el rol de
+    la persona. Una sola vez, por la cuenta cuyo `email` es el de la
+    invitación (`403 invitation-email-mismatch`); vencida,
+    `410 invitation-expired`; aceptada por otra cuenta, `410 invitation-used`.
+    Quien ya estaba en el espacio conserva su rol.
+  - **En la nube,** los miembros de un espacio de una organización del IdP
+    (`sello_workspace_id`) son los asientos que empuja billing: se invitan y
+    cambian de rol en «Su cuenta › Organización › Miembros y acceso» de Sello,
+    y aquí invitar y cambiar un rol es `409 members-managed-by-sello`. Las
+    invitaciones son de los espacios sin ella: los de una instalación propia y
+    el de la plataforma.
 - `GET /workspaces/{w}/usage?from=AAAA-MM&to=AAAA-MM` →
   `{ "plan", "limits", "items": [{ "month", "environment", "signatures" }] }`:
   lo que firmó el espacio, por mes y ambiente (por defecto, los últimos doce
@@ -140,9 +209,11 @@ no en el del dueño de la organización.
 
 - `GET /workspaces/{w}/api-keys`.
 - `POST /workspaces/{w}/api-keys`
-  `{ "name", "environment", "scopes", "organization_id"? }` → la clave con
-  `"key"`, que se muestra una sola vez. Una clave que crea otra no le da más
-  de lo que tiene: ni otros scopes, ni otro ambiente, ni otra organización.
+  `{ "name", "environment", "scopes", "organization_id"?, "requests_per_minute"? }`
+  → la clave con `"key"`, que se muestra una sola vez. `requests_per_minute`
+  son sus firmas por minuto, además de las del espacio («Límites»). Una clave
+  que crea otra no le da más de lo que tiene: ni otros scopes, ni otro
+  ambiente, ni otra organización, ni más firmas por minuto.
 - `DELETE /workspaces/{w}/api-keys/{k}`: la revoca; deja de valer al momento.
 
 ## Registro de firmas
@@ -152,7 +223,8 @@ no en el del dueño de la organización.
   El dueño de una organización ve también lo que firmó con ella otro espacio
   por delegación (`signed_by_workspace_id`, sin su `api_key_id` ni su
   `user_id`); `user_id` es quien firmó desde el panel, y `organization_name`
-  es `null` si la organización se borró.
+  es `null` si la organización se borró. Cada entrada dura lo que la retención
+  del espacio que firmó («Límites»).
 - `GET /workspaces/{w}/signatures/{s}`.
 
 ## Billing (solo en la nube)

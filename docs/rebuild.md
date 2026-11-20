@@ -53,9 +53,13 @@ encuentro: se extienden sin romper a quien los usa.
 - El servidor MCP (las herramientas de `../sign-old/docs/api.md`).
 - Los avisos y las tareas programadas: certificados por vencer, el uso del
   plan, el reporte de uso a billing cada hora.
-- Las invitaciones por correo, la bitácora de auditoría y la exportación.
+- La bitácora de auditoría y la exportación. (Las invitaciones por correo y
+  el cambio de rol de los miembros, hechos el 2026-11-20: «API» y «Panel».)
 - Guardar las firmas (`store_signatures`) en un almacén S3.
-- Los límites por plan y por minuto.
+- Los límites por plan y por minuto, y la retención del registro de firmas:
+  hechos en el API el 2026-11-20 («API»). Falta que el panel muestre sus
+  errores y deje poner los límites propios (los del espacio y los de cada
+  clave).
 - Copiar los datos de `../sign-old` (los certificados, sobre todo: la
   plataforma no los guarda), si se decide copiarlos.
 - El cambio en la plataforma de Sello: `X-Organization-Id`, el id de la
@@ -69,8 +73,12 @@ Cada frente deja aquí, al terminar, qué quedó hecho, qué no y cómo se prueb
 
 ### Despliegue
 
-Preparado el 2026-11-19, sin publicar: [`deploy.md`](deploy.md) tiene las
-variables, el orden y cómo volver atrás. El panel se construye para Cloudflare
+Publicado el 2026-11-19 y 20: el panel, en `sign.sello.tax` (el Worker
+`sello-sign-panel`, en lugar del viejo `sello-sign`), con su cliente en el
+IdP de Sello; el API, en `api.sign.sello.tax` (el servicio Compose «Sign API»
+de Dokploy); y la base `sign`, en el proyecto `sello-sign` de Neon, con su rol
+`sign_app`. [`deploy.md`](deploy.md) tiene las variables, el orden, cómo se
+publica cada cambio y cómo volver atrás. El panel se construye para Cloudflare
 Workers (`bun run build:cloudflare`, el preset `cloudflare_module` de Nitro, y
 `apps/panel/wrangler.jsonc`), con `pg` por TCP y un _pool_ por petición
 (`src/lib/database.ts`, desde `src/server.ts`) y las tablas de better-auth
@@ -80,8 +88,8 @@ Valkey (`apps/api/compose.dokploy.yml`). Probado en local: el panel en workerd
 (`wrangler dev`) contra el Postgres de `compose.yml` y un API —crear la cuenta,
 entrar, el JWKS, el token, `/api/sign/*` y las páginas con sesión, también con
 peticiones en paralelo—, y la imagen del API (migrar, la consola, firmar un
-DTE con una clave). Falta: la dirección del panel (decisión del dueño), Neon,
-el cliente del IdP y probarlo publicado.
+DTE con una clave). Falta: las pruebas de punta a punta en la nube («Fase
+2»).
 
 ### Firmadores XMLDSig y JWS
 
@@ -278,8 +286,11 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
 
 - **Cuentas:** better-auth en el esquema `auth` de la base `sign`
   (`bun run db:migrate`, `scripts/migrate.ts`; nunca en `public`, que es del
-  API). Correo y contraseña, con el restablecimiento (el enlace sale por la
-  consola del servidor: todavía no hay proveedor de correo). Un proveedor
+  API). Correo y contraseña, con el restablecimiento, cuyo correo sale por
+  Resend (`src/lib/email.ts`, con `RESEND_API_KEY` y `EMAIL_FROM`, en la nube
+  de `@sign.sello.tax`; sin la clave, por la consola del servidor) con la
+  plantilla de `src/lib/account-email.ts`; better-auth no verifica el correo,
+  así que no hay correo de verificación. Un proveedor
   OIDC opcional con `genericOAuth` (`OIDC_ISSUER`, `OIDC_CLIENT_ID`,
   `OIDC_CLIENT_SECRET`; `OIDC_ONLY` deja solo «Continuar con …» y apaga el
   registro); con `CLOUD=true` pide también el alcance `workspaces`, y en cada
@@ -302,6 +313,49 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   permisos, una sola organización opcional, la clave se muestra una vez,
   revocar); el registro de firmas con filtros y su detalle; «General» del
   espacio (con su id, para recibir delegaciones) y sus miembros.
+- **Miembros e invitaciones** (2026-11-20): quien administra el espacio
+  invita por correo (el correo y el rol; un administrador no ofrece el de
+  propietario), ve las invitaciones pendientes y las vencidas, las revoca y
+  cambia el rol de cada miembro con un selector (solo los roles que el API
+  le deja dar; cambiar el suyo pide confirmación). Invitar lo hace el
+  servidor del panel (`server/invitations.ts`, `lib/invitations.ts`): pide
+  al API la invitación con el token de la persona, pone el token que el API
+  responde una vez en el enlace (`/invitation?token=…`) y manda el correo con
+  `src/lib/email.ts`; si el correo no sale, la invitación queda y la página
+  da el enlace para copiarlo, que también se muestra, una vez, tras enviarlo.
+  `/invitation` está fuera de `_auth` y de `_app`: sin sesión pide iniciar
+  sesión o crear la cuenta y vuelve ahí (`?redirect=`); con sesión muestra el
+  espacio, quién invitó y el rol, y la acepta, o dice que venció, que ya se
+  aceptó, que se revocó o que es de otro correo (con «Cerrar sesión»). En un
+  espacio de una organización de Sello (`sello_workspace_id`) no se invita
+  ni se cambia un rol: la página enlaza a «Su cuenta › Organización ›
+  Miembros y acceso» del centro de cuenta (`lib/members.ts`).
+- **La cuenta** («Su cuenta», en el menú de la cuenta; `/w/<id>/account`):
+  el nombre, la contraseña (pide la actual y puede cerrar las demás
+  sesiones; si la cuenta solo entra con el proveedor OIDC, lo dice) y las
+  sesiones activas, con cerrar una o las demás, todo con better-auth. Con
+  `OIDC_ONLY` el nombre y el correo se ven y no se cambian (el proveedor los
+  reescribe en cada inicio de sesión) y no hay contraseña: lo dice, y con
+  `CLOUD=true` enlaza a «Datos personales» y «Seguridad» del centro de cuenta
+  de Sello (`/u/0/sign/profile` y `/u/0/sign/security`, con `?redirect=`).
+- **Verificar una firma** (`/w/<id>/verify`): en el navegador, con el
+  verificador del sitio de Sello (`sello.tax/sign/verify`), que es una copia
+  exacta del de `../sign-old` (`src/lib/verify-client.ts`, fuera de Prettier;
+  `verify-client.test.ts` compara las dos copias si `../sign-old` está al
+  lado). El contrato tiene `POST /verifications`, pero solo con una clave de
+  API, no con el token del panel; si el contrato la abre al token, el panel
+  puede pasar a usarla. Un JWS de El Salvador pide el certificado del emisor
+  (pegado o subido): el contrato no da el certificado de una organización.
+- **En el móvil**, las tablas largas (registro de firmas, organizaciones,
+  certificados, delegaciones, claves y la actividad del resumen) son una
+  tarjeta por fila (`src/styles/cards.css` y `TableCards`, con `data-label`
+  en cada celda), sin desplazarse de lado.
+- **`bun run lint:design`** (en el panel o en la raíz): el de Sello y
+  `../sign-old` sobre el TSX y el CSS propios del panel
+  (`scripts/lint-design.ts`), sin lo que viene del registro `@sello`
+  (`src/components/ui/`, `src/lib/utils.ts`, `src/lib/button-variants.ts`,
+  `src/styles/sello/`) ni los correos. No mide el contraste: la paleta es la
+  de Sello, que la mide allí.
 - **Probado de punta a punta** contra el API de `apps/api` con la base de
   `compose.yml`: crear la cuenta e iniciar sesión, el token verificado con
   `jose` contra el JWKS, crear dos espacios, una organización de Costa Rica con
@@ -309,22 +363,30 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   el registro, el uso, delegar a otro espacio (y que borrar la organización
   con la delegación dé `409`), quitar la delegación, crear y revocar la clave,
   y los miembros; en un navegador, las páginas de día, de noche y en el móvil.
+  Las invitaciones, con un API y un panel propios contra otra base: invitar
+  (el correo por la consola), abrir el enlace sin sesión, iniciarla, volver y
+  aceptar; el enlace de otro correo, el revocado, la invitación repetida, el
+  cambio de rol y el último propietario, de día, de noche y en el móvil.
 - **Sin probar:** El Salvador (su firmador todavía no estaba en el API:
   `country-not-implemented`), el OIDC contra un proveedor real, la nube
   (`/me/sello-organizations`, abrir el espacio de una organización de Sello y
-  traer sus organizaciones), una delegación `locked` y el correo del
-  restablecimiento más allá de la consola.
-- **Falta:** las invitaciones y el cambio de rol de los miembros (el contrato
-  aún no los tiene), la verificación de una firma desde el panel, la cuenta
-  (nombre, contraseña, sesiones), un proveedor de correo, la tabla del móvil
-  como tarjetas (hoy se desplaza) y el `lint:design` de `../sign-old`.
+  traer sus organizaciones), una delegación `locked`, el correo por Resend
+  (solo la consola), la cuenta con `OIDC_ONLY` en un navegador (solo el
+  typecheck) y el verificador con El Salvador, Guatemala, Panamá y República
+  Dominicana desde el panel (se probó Costa Rica, válida y alterada; los
+  demás se prueban en `../sign-old`).
+- **Falta:** quitar a un miembro (el contrato aún no lo tiene), reenviar una
+  invitación (hoy se revoca y se envía otra), cambiar el correo de la cuenta
+  y borrarla, y una
+  dirección de la cuenta fuera de un espacio (hoy cuelga de `/w/<id>/`).
 
 Cómo se levanta y sus variables, en `apps/panel/README.md` y
 `apps/panel/.env.example`: `DATABASE_URL`, `BETTER_AUTH_SECRET`,
 `BETTER_AUTH_URL` (= `PANEL_URL` del API), `API_URL`, `CLOUD`, `OIDC_ISSUER`,
 `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_ONLY` y, opcionales,
-`OIDC_PROVIDER_ID` y `OIDC_PROVIDER_NAME`. Pruebas, desde `apps/panel`:
-`bun run typecheck`, `bun run test` y `bun run build`.
+`OIDC_PROVIDER_ID`, `OIDC_PROVIDER_NAME`, `RESEND_API_KEY` y `EMAIL_FROM`.
+Pruebas, desde `apps/panel`: `bun run typecheck`, `bun run test`,
+`bun run lint:design` y `bun run build`.
 
 ### API
 
@@ -348,17 +410,72 @@ con las del contrato).
   `internal/cache` (las claves en Valkey, por su SHA-256; el material
   descifrado, solo en la memoria del proceso, LRU de 1000 por 10 minutos),
   `internal/billing` (el estado que empuja billing, la activación y el reporte
-  de uso cada hora, con un _advisory lock_ para que lo haga una instancia) e
-  `internal/httpapi` (las rutas, quién puede cada una, los errores y el
-  `Signer`, que abre el material y llama al país).
+  de uso cada hora, con un _advisory lock_ para que lo haga una instancia),
+  `internal/ratelimit` (las firmas por minuto, en Valkey o en memoria),
+  `internal/retention` (borrar cada hora lo vencido del registro, con otro
+  _advisory lock_) e `internal/httpapi` (las rutas, quién puede cada una, los
+  errores, los límites al firmar y el `Signer`, que abre el material y llama
+  al país).
 - **El modelo:** tablas `workspaces`, `workspace_members` (por el `sub` del
   panel), `billing_members` (en la nube, los asientos que empuja billing, por
   el `sub` de Sello: son miembros los primeros `max_members` en el orden de
   billing, sin copiarlos a `workspace_members`), `users` (quién es cada `sub`,
   según su último token, para nombrar a los miembros), `organizations`,
   `certificates`, `delegations`, `api_keys`, `signing_log` (sin el documento,
-  y sin llave foránea a la organización: sobrevive a su borrado) y
-  `usage_counters` (por espacio que firma, organización, ambiente y mes).
+  y sin llave foránea a la organización: sobrevive a su borrado),
+  `invitations` (migración `0002`; abajo),
+  `usage_counters` (por espacio que firma, organización, ambiente y mes) y
+  `workspace_usage` (su suma por espacio, ambiente y mes, en una fila que se
+  lee en cada firma; la lleva un _trigger_ de `usage_counters`, así que no se
+  aparta de lo que se reporta a billing).
+- **Los límites** (desde el 2026-11-20, migración `0003`; la semántica, en
+  `../sello/apps/api/internal/billing/domain/sign.go`): se aplican al firmar,
+  en el espacio que firma, también con una organización delegada
+  (`httpapi.admit`): primero las firmas por minuto de la clave
+  (`api_keys.requests_per_minute`) y del espacio (el techo de su plan, o uno
+  menor que se pone él, `workspaces.own_requests_per_minute`), en ventanas
+  fijas de un minuto en Valkey (`429 rate-limited`, con `Retry-After` y
+  `X-RateLimit-*`; si Valkey falla, se firma igual y se avisa en el log);
+  después, las del mes en el ambiente: hasta el tope que empuja billing
+  (`prod_hard_cap`, `test_hard_cap`: en un plan de pago, el doble de la cuota
+  en producción, cuyo excedente cobra billing, y un 10 % más en prueba) o, sin
+  tope, la cuota (`429 monthly-limit-reached`, hasta el primer día del mes
+  siguiente). Se lee la cuenta antes de firmar y se suma al registrar: las
+  firmas en curso a la vez pueden pasar el tope por unas pocas, y billing no
+  cobra más allá de él. Crear o traer una organización más allá de
+  `max_organizations` es `409 organization-limit-reached`. Una instalación
+  propia no tiene límites salvo los que se configuren: la consola
+  (`api workspace limits`, solo para un espacio sin plan) y
+  `SIGN_RATE_LIMIT_PER_MINUTE` y `SIGN_LOG_RETENTION_DAYS`, que valen donde la
+  consola no puso otro.
+- **Las invitaciones y los roles** (desde el 2026-11-20, migración `0002`):
+  `owner` y `admin` invitan un correo (normalizado en minúsculas) con un
+  rol, y solo un `owner` invita o hace a otro `owner`. El token
+  (`sign_inv_…`, 256 bits en base62, `auth.NewInvitationToken`) se responde
+  una sola vez y se guarda su SHA-256, como el de una clave; vale 7 días
+  (`store.InvitationLifetime`) y lo acepta, una vez, la cuenta del panel cuyo
+  `email` es el de la invitación. Una abierta por correo y espacio (índice
+  único parcial `invitations_open`); a una vencida la revoca y reemplaza la
+  siguiente. Aceptar la misma con la misma cuenta responde lo mismo; quien ya
+  estaba en el espacio conserva su rol. Invitar, aceptar y cambiar un rol
+  bloquean la fila del espacio (`SELECT … FOR UPDATE`), así que el límite de
+  miembros (`max_members`, contra `workspace_members`) y «el espacio nunca se
+  queda sin propietario» (`409 last-owner`) valen con peticiones a la vez.
+  Solo se cambia el rol de quien se agregó en Sign (`workspace_members`). **En
+  la nube,** un espacio de una organización del IdP (`sello_workspace_id`)
+  tiene por miembros los asientos que empuja billing (`billing_members`), que
+  se invitan y cambian en el centro de cuenta de Sello, como en
+  `../sign-old`: invitar, revocar, aceptar o cambiar un rol ahí es
+  `409 members-managed-by-sello`. Las invitaciones son de los demás
+  espacios: los de una instalación propia y el de la plataforma.
+- **La retención del registro:** cada entrada de `signing_log` se guarda los
+  días de `retention_days` del espacio que firmó (en la nube, los del plan:
+  7, 30, 90, 180 y 365 días de Free a Business, sin plazo en Enterprise; en
+  una instalación propia, sin plazo salvo los que se configuren), también la
+  que firmó con una organización de otro espacio: es su registro, y ahí se
+  contó. Una tarea la borra cada hora, en lotes de 5000 y bajo un _advisory
+  lock_, por el id (UUIDv7, ordenado por tiempo), con el índice que ya existía.
+  Lo contado en `usage_counters` se queda: se cobra.
 - **Lo que se decidió al hacerlo** (y está en el contrato): toda lista
   responde `{ items, next_cursor }`, y solo se paginan las que crecen; el NIT
   se compara sin separadores (en `X-Organization-Id` y en la idempotencia);
@@ -388,11 +505,22 @@ con las del contrato).
   de una organización de Sello, sus estados, el empuje, traer organizaciones
   del espacio de Sello con su certificado, su historial y la delegación
   `locked`, el orden inverso, y un espacio cerrado que devuelve sus
-  organizaciones a la plataforma, también con el estado repetido). Además, a mano, firmar y verificar un DTE
+  organizaciones a la plataforma, también con el estado repetido), los
+  límites (el del mes, también el de un plan de pago con su excedente y el de
+  lo firmado por delegación; el de cada minuto, del espacio, del que se pone
+  y de una clave, con sus cabeceras; el de organizaciones, también al
+  traerlas; los de la instalación) y la retención (lo vencido de cada espacio,
+  lo de otro espacio con otra retención, el uso que se queda y la tarea que
+  no corre si otra instancia la tiene), las invitaciones (crear, ver, aceptar
+  con su correo y no con otro, la repetida, la revocada, la vencida y su
+  reemplazo, la aceptada por otra cuenta, el límite de miembros, un espacio
+  de una organización de Sello) y los roles (lo que puede un administrador,
+  el último propietario, también con dos propietarios que se quitan el rol a
+  la vez). Con `VALKEY_TEST_URL`, el límite por
+  minuto contra Valkey. Además, a mano, firmar y verificar un DTE
   con el firmador de El Salvador y un certificado de
   `../sello/apps/api/tools/devcert`.
-- **Falta** (fase 2): los límites por plan y por minuto (se guardan y se
-  muestran, pero no se aplican), la retención del registro, las invitaciones,
+- **Falta** (fase 2): quitar a un miembro,
   los avisos, el MCP y la bitácora de auditoría.
 
 **En local**, desde `apps/api`, con `podman compose up -d` en la raíz:
@@ -411,6 +539,7 @@ plataforma de la nube (`SIGN_PLATFORM_WORKSPACE_ID`):
 WS=$(go run ./cmd/api workspace create -name "Pruebas" -country SV)
 KEY=$(go run ./cmd/api key create -workspace $WS -environment test)   # todos los scopes
 go run ./cmd/api member add -workspace $WS -user <sub del panel> -role owner
+go run ./cmd/api workspace limits -workspace $WS -prod 500 -rpm 60   # opcional: límites de un espacio sin plan
 
 curl -s -X POST 127.0.0.1:4441/workspaces/self/organizations -H "X-API-Key: $KEY" \
   -H 'Content-Type: application/json' \
@@ -429,12 +558,14 @@ curl -s 127.0.0.1:4441/workspaces/self/signatures -H "X-API-Key: $KEY"
 
 Variables, en `apps/api/.env.example`: las de «Variables» de `AGENTS.md`, más
 `ADDR`, `SIGN_SECRETS_KEY_PREVIOUS` (la clave anterior mientras se rota),
-`CORS_ORIGINS`, `LOG_FORMAT` y `LOG_LEVEL`. `PANEL_URL` y `API_URL` valen por
+`CORS_ORIGINS`, `SIGN_RATE_LIMIT_PER_MINUTE` y `SIGN_LOG_RETENTION_DAYS` (los
+límites de los espacios sin plan; vacías, ninguno), `LOG_FORMAT` y
+`LOG_LEVEL`. `PANEL_URL` y `API_URL` valen por
 defecto `http://127.0.0.1:4440` y `http://127.0.0.1:4441`, los del panel. Los
 logs nunca llevan una clave, un token, un documento ni material de un
 certificado: de cada petición, el método, el patrón de la ruta (no el camino,
 que puede llevar un NIT), el estado y la duración.
 
 Pruebas, desde `apps/api`: `go vet ./...` y `go test ./...`; con Postgres,
-`bun run test:pg` (`POSTGRES_TEST_URL`, por defecto la base de
+`bun run test:pg` (`POSTGRES_TEST_URL` y `VALKEY_TEST_URL`, por defecto los de
 `compose.yml`).

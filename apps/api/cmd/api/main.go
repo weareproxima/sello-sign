@@ -7,6 +7,7 @@
 //	api workspace create …    create a space (self-hosted, Sello's platform space)
 //	api member add …          make a panel user a member of a space
 //	api key create …          mint an API key and print it once
+//	api workspace limits …    set the limits of a space without a plan
 //	api health                exit 0 if this machine's server answers /health
 //
 // `api health` is the container's health check: its image has no shell nor
@@ -36,6 +37,8 @@ import (
 	"proxima.la/sello/sign/internal/cache"
 	"proxima.la/sello/sign/internal/config"
 	"proxima.la/sello/sign/internal/httpapi"
+	"proxima.la/sello/sign/internal/ratelimit"
+	"proxima.la/sello/sign/internal/retention"
 	"proxima.la/sello/sign/internal/secrets"
 	"proxima.la/sello/sign/internal/signing/countries"
 	"proxima.la/sello/sign/internal/store"
@@ -52,6 +55,8 @@ func main() {
 		err = migrateOnly()
 	case len(args) >= 2 && args[0] == "workspace" && args[1] == "create":
 		err = workspaceCreate(args[2:])
+	case len(args) >= 2 && args[0] == "workspace" && args[1] == "limits":
+		err = workspaceLimits(args[2:])
 	case len(args) >= 2 && args[0] == "member" && args[1] == "add":
 		err = memberAdd(args[2:])
 	case len(args) >= 2 && args[0] == "key" && args[1] == "create":
@@ -75,6 +80,8 @@ const usage = `usage:
   api [serve]
   api migrate
   api workspace create -name NAME [-country SV] [-owner PANEL_USER_ID]
+  api workspace limits -workspace ID [-organizations N] [-prod N] [-test N] [-members N] [-rpm N] [-retention DAYS]
+      (each takes a number, or "none" to remove that limit; only a space without a plan)
   api member add -workspace ID -user PANEL_USER_ID [-role owner|admin|member]
   api key create -workspace ID [-environment test|prod] [-name NAME] [-scopes a,b] [-organization ID]
   api health
@@ -146,9 +153,12 @@ func serve() error {
 	if len(applied) > 0 {
 		slog.Info("migrations applied", "versions", applied)
 	}
-	db := store.New(pool)
+	db := store.New(pool).WithDefaults(store.Defaults{
+		RequestsPerMinute: cfg.RequestsPerMinute, RetentionDays: cfg.LogRetentionDays,
+	})
 
 	var keys cache.Keys
+	var limiter ratelimit.Limiter
 	if cfg.RedisURL != "" {
 		rdb, err := cache.OpenValkey(ctx, cfg.RedisURL)
 		if err != nil {
@@ -156,9 +166,11 @@ func serve() error {
 		}
 		defer rdb.Close()
 		keys = cache.NewValkeyKeys(rdb)
+		limiter = ratelimit.NewValkey(rdb)
 	} else {
-		slog.Warn("REDIS_URL is unset: API keys are cached in memory, so a revoked key may work on another instance for a few minutes")
+		slog.Warn("REDIS_URL is unset: API keys are cached in memory, so a revoked key may work on another instance for a few minutes, and each instance counts the signing rate on its own")
 		keys = cache.NewMemoryKeys()
+		limiter = ratelimit.NewMemory()
 	}
 
 	registry := countries.Registry()
@@ -170,7 +182,7 @@ func serve() error {
 	signer := httpapi.NewSigner(keyring, cache.NewMaterial(1000, 10*time.Minute), registry, cfg.Countries, db.ActiveMaterial)
 
 	d := httpapi.Deps{
-		Store: db, Keys: keys, Signer: signer,
+		Store: db, Keys: keys, Limiter: limiter, Signer: signer,
 		Verifier: auth.NewJWKSVerifier(cfg.PanelURL, cfg.APIURL),
 		Cloud:    cfg.Cloud, PlatformWorkspace: cfg.PlatformWorkspace,
 		CORSOrigins: cfg.CORSOrigins,
@@ -187,6 +199,8 @@ func serve() error {
 	} else if cfg.Cloud {
 		slog.Warn("in the cloud without BILLING_URL: spaces can't be opened and usage isn't reported")
 	}
+
+	go retention.Run(ctx, db, time.Now)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,

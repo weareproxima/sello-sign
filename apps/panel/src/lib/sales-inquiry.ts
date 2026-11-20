@@ -11,6 +11,8 @@
  * `sales-inquiry.test.ts`; the route is `routes/sales-inquiry.ts`.
  */
 
+import { deliverEmail, escapeHtml } from './email'
+
 export const TIMELINES = ['asap', '1m', '3m', 'exploring'] as const
 export type Timeline = (typeof TIMELINES)[number]
 
@@ -94,15 +96,6 @@ const TIMELINE_LABELS: Record<Timeline, string> = {
 	exploring: 'Explorando',
 }
 
-const escapeHtml = (s: string) =>
-	s.replace(
-		/[&<>"']/g,
-		(c) =>
-			({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
-				c
-			]!
-	)
-
 /** The e-mail to sales: subject, plain text and HTML, as ../sign-old wrote it. */
 export function inquiryEmail(
 	inquiry: SalesInquiry,
@@ -168,9 +161,9 @@ export function inquiryEmail(
 }
 
 /**
- * Sends it with Resend's HTTP API (no SDK: plain `fetch`, as on Workers), or,
- * without `RESEND_API_KEY`, to the console, like the panel's other e-mails.
- * Throws if Resend refuses it.
+ * Sends the inquiry to sales (`lib/email.ts`: Resend, or the console without
+ * `RESEND_API_KEY`), with the visitor as `reply_to`. Throws if Resend
+ * refuses it.
  */
 export async function sendInquiry(
 	inquiry: SalesInquiry,
@@ -179,30 +172,11 @@ export async function sendInquiry(
 	fetcher: typeof fetch = fetch
 ): Promise<void> {
 	const message = inquiryEmail(inquiry, sender)
-	if (!email.resendKey) {
-		console.info(
-			`[email] to=${email.sales} subject=${message.subject}\n${message.text}`
-		)
-		return
-	}
-	const response = await fetcher('https://api.resend.com/emails', {
-		method: 'POST',
-		headers: {
-			authorization: `Bearer ${email.resendKey}`,
-			'content-type': 'application/json',
-		},
-		body: JSON.stringify({
-			from: email.from,
-			to: email.sales,
-			reply_to: inquiry.email,
-			subject: message.subject,
-			text: message.text,
-			html: message.html,
-		}),
-	})
-	if (!response.ok) {
-		throw new Error(`Resend answered ${response.status}`)
-	}
+	await deliverEmail(
+		{ to: email.sales, replyTo: inquiry.email, ...message },
+		email,
+		fetcher
+	)
 }
 
 /**

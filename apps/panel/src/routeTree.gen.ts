@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as InvitationRouteImport } from './routes/invitation'
 import { Route as SalesInquiryRouteImport } from './routes/sales-inquiry'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth.forgot-password'
@@ -22,10 +23,12 @@ import { Route as AppWorkspacesNewRouteImport } from './routes/_app.workspaces.n
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiSignSplatRouteImport } from './routes/api/sign/$'
 import { Route as AppWWorkspaceIdIndexRouteImport } from './routes/_app.w.$workspaceId.index'
+import { Route as AppWWorkspaceIdAccountRouteImport } from './routes/_app.w.$workspaceId.account'
 import { Route as AppWWorkspaceIdApiKeysRouteImport } from './routes/_app.w.$workspaceId.api-keys'
 import { Route as AppWWorkspaceIdMembersRouteImport } from './routes/_app.w.$workspaceId.members'
 import { Route as AppWWorkspaceIdSettingsRouteImport } from './routes/_app.w.$workspaceId.settings'
 import { Route as AppWWorkspaceIdSignaturesRouteImport } from './routes/_app.w.$workspaceId.signatures'
+import { Route as AppWWorkspaceIdVerifyRouteImport } from './routes/_app.w.$workspaceId.verify'
 import { Route as AppWWorkspaceIdOrganizationsIndexRouteImport } from './routes/_app.w.$workspaceId.organizations.index'
 import { Route as AppWWorkspaceIdOrganizationsOrganizationIdRouteImport } from './routes/_app.w.$workspaceId.organizations.$organizationId'
 import { Route as AppWWorkspaceIdOrganizationsClaimRouteImport } from './routes/_app.w.$workspaceId.organizations.claim'
@@ -41,6 +44,11 @@ const AppRoute = AppRouteImport.update({
 } as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvitationRoute = InvitationRouteImport.update({
+  id: '/invitation',
+  path: '/invitation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SalesInquiryRoute = SalesInquiryRouteImport.update({
@@ -98,6 +106,11 @@ const AppWWorkspaceIdIndexRoute = AppWWorkspaceIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppWWorkspaceIdRoute,
 } as any)
+const AppWWorkspaceIdAccountRoute = AppWWorkspaceIdAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AppWWorkspaceIdRoute,
+} as any)
 const AppWWorkspaceIdApiKeysRoute = AppWWorkspaceIdApiKeysRouteImport.update({
   id: '/api-keys',
   path: '/api-keys',
@@ -119,6 +132,11 @@ const AppWWorkspaceIdSignaturesRoute =
     path: '/signatures',
     getParentRoute: () => AppWWorkspaceIdRoute,
   } as any)
+const AppWWorkspaceIdVerifyRoute = AppWWorkspaceIdVerifyRouteImport.update({
+  id: '/verify',
+  path: '/verify',
+  getParentRoute: () => AppWWorkspaceIdRoute,
+} as any)
 const AppWWorkspaceIdOrganizationsIndexRoute =
   AppWWorkspaceIdOrganizationsIndexRouteImport.update({
     id: '/organizations/',
@@ -170,6 +188,7 @@ const AppWWorkspaceIdOrganizationsOrganizationIdSignRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/invitation': typeof InvitationRoute
   '/sales-inquiry': typeof SalesInquiryRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/reset-password': typeof AuthResetPasswordRoute
@@ -179,10 +198,12 @@ export interface FileRoutesByFullPath {
   '/workspaces/new': typeof AppWorkspacesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/sign/$': typeof ApiSignSplatRoute
+  '/w/$workspaceId/account': typeof AppWWorkspaceIdAccountRoute
   '/w/$workspaceId/api-keys': typeof AppWWorkspaceIdApiKeysRoute
   '/w/$workspaceId/members': typeof AppWWorkspaceIdMembersRoute
   '/w/$workspaceId/settings': typeof AppWWorkspaceIdSettingsRoute
   '/w/$workspaceId/signatures': typeof AppWWorkspaceIdSignaturesRoute
+  '/w/$workspaceId/verify': typeof AppWWorkspaceIdVerifyRoute
   '/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
   '/w/$workspaceId/organizations/$organizationId': typeof AppWWorkspaceIdOrganizationsOrganizationIdRouteWithChildren
   '/w/$workspaceId/organizations/claim': typeof AppWWorkspaceIdOrganizationsClaimRoute
@@ -195,6 +216,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
+  '/invitation': typeof InvitationRoute
   '/sales-inquiry': typeof SalesInquiryRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/reset-password': typeof AuthResetPasswordRoute
@@ -203,10 +225,12 @@ export interface FileRoutesByTo {
   '/workspaces/new': typeof AppWorkspacesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/sign/$': typeof ApiSignSplatRoute
+  '/w/$workspaceId/account': typeof AppWWorkspaceIdAccountRoute
   '/w/$workspaceId/api-keys': typeof AppWWorkspaceIdApiKeysRoute
   '/w/$workspaceId/members': typeof AppWWorkspaceIdMembersRoute
   '/w/$workspaceId/settings': typeof AppWWorkspaceIdSettingsRoute
   '/w/$workspaceId/signatures': typeof AppWWorkspaceIdSignaturesRoute
+  '/w/$workspaceId/verify': typeof AppWWorkspaceIdVerifyRoute
   '/w/$workspaceId': typeof AppWWorkspaceIdIndexRoute
   '/w/$workspaceId/organizations/claim': typeof AppWWorkspaceIdOrganizationsClaimRoute
   '/w/$workspaceId/organizations/new': typeof AppWWorkspaceIdOrganizationsNewRoute
@@ -220,6 +244,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
+  '/invitation': typeof InvitationRoute
   '/sales-inquiry': typeof SalesInquiryRoute
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/reset-password': typeof AuthResetPasswordRoute
@@ -230,10 +255,12 @@ export interface FileRoutesById {
   '/_app/workspaces/new': typeof AppWorkspacesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/sign/$': typeof ApiSignSplatRoute
+  '/_app/w/$workspaceId/account': typeof AppWWorkspaceIdAccountRoute
   '/_app/w/$workspaceId/api-keys': typeof AppWWorkspaceIdApiKeysRoute
   '/_app/w/$workspaceId/members': typeof AppWWorkspaceIdMembersRoute
   '/_app/w/$workspaceId/settings': typeof AppWWorkspaceIdSettingsRoute
   '/_app/w/$workspaceId/signatures': typeof AppWWorkspaceIdSignaturesRoute
+  '/_app/w/$workspaceId/verify': typeof AppWWorkspaceIdVerifyRoute
   '/_app/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
   '/_app/w/$workspaceId/organizations/$organizationId': typeof AppWWorkspaceIdOrganizationsOrganizationIdRouteWithChildren
   '/_app/w/$workspaceId/organizations/claim': typeof AppWWorkspaceIdOrganizationsClaimRoute
@@ -248,6 +275,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/invitation'
     | '/sales-inquiry'
     | '/forgot-password'
     | '/reset-password'
@@ -257,10 +285,12 @@ export interface FileRouteTypes {
     | '/workspaces/new'
     | '/api/auth/$'
     | '/api/sign/$'
+    | '/w/$workspaceId/account'
     | '/w/$workspaceId/api-keys'
     | '/w/$workspaceId/members'
     | '/w/$workspaceId/settings'
     | '/w/$workspaceId/signatures'
+    | '/w/$workspaceId/verify'
     | '/w/$workspaceId/'
     | '/w/$workspaceId/organizations/$organizationId'
     | '/w/$workspaceId/organizations/claim'
@@ -273,6 +303,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/invitation'
     | '/sales-inquiry'
     | '/forgot-password'
     | '/reset-password'
@@ -281,10 +312,12 @@ export interface FileRouteTypes {
     | '/workspaces/new'
     | '/api/auth/$'
     | '/api/sign/$'
+    | '/w/$workspaceId/account'
     | '/w/$workspaceId/api-keys'
     | '/w/$workspaceId/members'
     | '/w/$workspaceId/settings'
     | '/w/$workspaceId/signatures'
+    | '/w/$workspaceId/verify'
     | '/w/$workspaceId'
     | '/w/$workspaceId/organizations/claim'
     | '/w/$workspaceId/organizations/new'
@@ -297,6 +330,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/_auth'
+    | '/invitation'
     | '/sales-inquiry'
     | '/_auth/forgot-password'
     | '/_auth/reset-password'
@@ -307,10 +341,12 @@ export interface FileRouteTypes {
     | '/_app/workspaces/new'
     | '/api/auth/$'
     | '/api/sign/$'
+    | '/_app/w/$workspaceId/account'
     | '/_app/w/$workspaceId/api-keys'
     | '/_app/w/$workspaceId/members'
     | '/_app/w/$workspaceId/settings'
     | '/_app/w/$workspaceId/signatures'
+    | '/_app/w/$workspaceId/verify'
     | '/_app/w/$workspaceId/'
     | '/_app/w/$workspaceId/organizations/$organizationId'
     | '/_app/w/$workspaceId/organizations/claim'
@@ -325,6 +361,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
+  InvitationRoute: typeof InvitationRoute
   SalesInquiryRoute: typeof SalesInquiryRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiSignSplatRoute: typeof ApiSignSplatRoute
@@ -344,6 +381,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invitation': {
+      id: '/invitation'
+      path: '/invitation'
+      fullPath: '/invitation'
+      preLoaderRoute: typeof InvitationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sales-inquiry': {
@@ -423,6 +467,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppWWorkspaceIdIndexRouteImport
       parentRoute: typeof AppWWorkspaceIdRoute
     }
+    '/_app/w/$workspaceId/account': {
+      id: '/_app/w/$workspaceId/account'
+      path: '/account'
+      fullPath: '/w/$workspaceId/account'
+      preLoaderRoute: typeof AppWWorkspaceIdAccountRouteImport
+      parentRoute: typeof AppWWorkspaceIdRoute
+    }
     '/_app/w/$workspaceId/api-keys': {
       id: '/_app/w/$workspaceId/api-keys'
       path: '/api-keys'
@@ -449,6 +500,13 @@ declare module '@tanstack/react-router' {
       path: '/signatures'
       fullPath: '/w/$workspaceId/signatures'
       preLoaderRoute: typeof AppWWorkspaceIdSignaturesRouteImport
+      parentRoute: typeof AppWWorkspaceIdRoute
+    }
+    '/_app/w/$workspaceId/verify': {
+      id: '/_app/w/$workspaceId/verify'
+      path: '/verify'
+      fullPath: '/w/$workspaceId/verify'
+      preLoaderRoute: typeof AppWWorkspaceIdVerifyRouteImport
       parentRoute: typeof AppWWorkspaceIdRoute
     }
     '/_app/w/$workspaceId/organizations/': {
@@ -535,10 +593,12 @@ const AppWWorkspaceIdOrganizationsOrganizationIdRouteWithChildren =
   )
 
 interface AppWWorkspaceIdRouteChildren {
+  AppWWorkspaceIdAccountRoute: typeof AppWWorkspaceIdAccountRoute
   AppWWorkspaceIdApiKeysRoute: typeof AppWWorkspaceIdApiKeysRoute
   AppWWorkspaceIdMembersRoute: typeof AppWWorkspaceIdMembersRoute
   AppWWorkspaceIdSettingsRoute: typeof AppWWorkspaceIdSettingsRoute
   AppWWorkspaceIdSignaturesRoute: typeof AppWWorkspaceIdSignaturesRoute
+  AppWWorkspaceIdVerifyRoute: typeof AppWWorkspaceIdVerifyRoute
   AppWWorkspaceIdIndexRoute: typeof AppWWorkspaceIdIndexRoute
   AppWWorkspaceIdOrganizationsOrganizationIdRoute: typeof AppWWorkspaceIdOrganizationsOrganizationIdRouteWithChildren
   AppWWorkspaceIdOrganizationsClaimRoute: typeof AppWWorkspaceIdOrganizationsClaimRoute
@@ -547,10 +607,12 @@ interface AppWWorkspaceIdRouteChildren {
 }
 
 const AppWWorkspaceIdRouteChildren: AppWWorkspaceIdRouteChildren = {
+  AppWWorkspaceIdAccountRoute: AppWWorkspaceIdAccountRoute,
   AppWWorkspaceIdApiKeysRoute: AppWWorkspaceIdApiKeysRoute,
   AppWWorkspaceIdMembersRoute: AppWWorkspaceIdMembersRoute,
   AppWWorkspaceIdSettingsRoute: AppWWorkspaceIdSettingsRoute,
   AppWWorkspaceIdSignaturesRoute: AppWWorkspaceIdSignaturesRoute,
+  AppWWorkspaceIdVerifyRoute: AppWWorkspaceIdVerifyRoute,
   AppWWorkspaceIdIndexRoute: AppWWorkspaceIdIndexRoute,
   AppWWorkspaceIdOrganizationsOrganizationIdRoute:
     AppWWorkspaceIdOrganizationsOrganizationIdRouteWithChildren,
@@ -598,6 +660,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
+  InvitationRoute: InvitationRoute,
   SalesInquiryRoute: SalesInquiryRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiSignSplatRoute: ApiSignSplatRoute,

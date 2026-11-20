@@ -11,6 +11,9 @@ info:
     - Los errores son `application/problem+json` (RFC 9457) con `type` (un slug
       estable), `title`, `status` y `detail`. La única excepción es el `404`
       del empuje de billing, cuyo `type` es la URI que billing ya reconoce.
+    - Los límites del plan se aplican al firmar, en el espacio que firma:
+      `429 rate-limited` y `429 monthly-limit-reached`, con `Retry-After` y
+      las cabeceras `X-RateLimit-*` (ver `Limits`).
     - Toda lista responde `{ "items": [...], "next_cursor": "…" | null }`.
       Las que crecen (organizaciones, claves, registro de firmas) se paginan
       con `?limit=` (1 a 100, 50 por defecto) y `?cursor=`; las demás
@@ -46,7 +49,9 @@ paths:
         Firma el documento tal cual llega con el certificado activo del
         ambiente de la clave. Lo firmado cuenta en el espacio de la clave,
         también cuando la organización es de otro espacio y se firma por
-        delegación.
+        delegación, y ahí se aplican los límites: las firmas por minuto de
+        la clave y del espacio (`429 rate-limited`) y las del mes del plan
+        del espacio en el ambiente (`429 monthly-limit-reached`).
       security:
         - apiKey: []
       parameters:
@@ -65,6 +70,11 @@ paths:
       responses:
         '200':
           description: Firmado.
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+            X-RateLimit-Remaining:
+              { $ref: '#/components/headers/RateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Signed' }
@@ -72,6 +82,7 @@ paths:
         '401': { $ref: '#/components/responses/Problem' }
         '403': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/LimitReached' }
         '409':
           description: |
             `country-not-enabled` (el país de la organización no se ofrece),
@@ -257,7 +268,13 @@ paths:
       tags: [Espacios]
       operationId: updateWorkspace
       summary: Cambiar un espacio
-      description: Solo `owner` o `admin`, con el token. En la nube, el nombre es el de la organización del IdP, y billing lo reemplaza en su próximo empuje.
+      description: |
+        Solo `owner` o `admin`, con el token. En la nube, el nombre es el de
+        la organización del IdP, y billing lo reemplaza en su próximo empuje.
+        `requests_per_minute` es el límite de firmas por minuto que el
+        espacio se pone, nunca por encima del de su plan
+        (`limits.requests_per_minute`; si lo pasa, `400 invalid-request`);
+        `null` lo quita, y vale el del plan.
       security:
         - panelToken: []
       requestBody:
@@ -272,6 +289,10 @@ paths:
                   oneOf:
                     - $ref: '#/components/schemas/Country'
                     - type: 'null'
+                requests_per_minute:
+                  type: [integer, 'null']
+                  minimum: 1
+                  maximum: 1000000
       responses:
         '200':
           description: El espacio.
@@ -304,6 +325,224 @@ paths:
                     items: { $ref: '#/components/schemas/Member' }
                   next_cursor: { type: 'null' }
         '404': { $ref: '#/components/responses/Problem' }
+  /workspaces/{workspace_id}/members/{user_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - name: user_id
+        in: path
+        required: true
+        description: El usuario del panel (`user_id` del miembro).
+        schema: { type: string }
+    patch:
+      tags: [Espacios]
+      operationId: updateMember
+      summary: Cambiar el rol de un miembro
+      description: |
+        Con el token, `owner` o `admin`. Solo un `owner` da o quita el rol
+        `owner`, y el espacio nunca se queda sin uno: cambiar al último es
+        `409 last-owner`. Solo los miembros que se agregaron en Sign; en un
+        espacio de una organización del IdP (`sello_workspace_id`), los
+        miembros son los asientos que empuja billing y cambian en el centro
+        de cuenta de Sello: `409 members-managed-by-sello`.
+      security:
+        - panelToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '200':
+          description: El miembro, con su rol nuevo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Member' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404':
+          description: '`workspace-not-found` o `member-not-found`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: '`last-owner` o `members-managed-by-sello`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /workspaces/{workspace_id}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Espacios]
+      operationId: listInvitations
+      summary: Las invitaciones abiertas del espacio
+      description: |
+        Con el token, `owner` o `admin`. Las que nadie aceptó ni se
+        revocaron, también las vencidas (`status: expired`), de la más nueva
+        a la más antigua.
+      security:
+        - panelToken: []
+      responses:
+        '200':
+          description: Las invitaciones.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Invitation' }
+                  next_cursor: { type: 'null' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Espacios]
+      operationId: createInvitation
+      summary: Invitar a alguien por correo
+      description: |
+        Con el token, `owner` o `admin`; solo un `owner` invita a otro
+        `owner`. Vale 7 días y se acepta una sola vez
+        (`POST /invitation-acceptances`). Responde el `token`, que no se
+        vuelve a mostrar: el panel lo pone en el enlace del correo que
+        manda. El API guarda solo su SHA-256. Un correo con una invitación
+        vencida recibe otra en su lugar.
+      security:
+        - panelToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email, maxLength: 320 }
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '201':
+          description: La invitación, con `token`.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Invitation'
+                  - type: object
+                    required: [token]
+                    properties:
+                      token: { type: string, example: sign_inv_7Hq2… }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409':
+          description: |
+            `already-member`, `invitation-exists` (ese correo ya tiene una
+            invitación pendiente), `workspace-full` (el plan no admite más
+            miembros) o `members-managed-by-sello` (un espacio de una
+            organización del IdP).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /workspaces/{workspace_id}/invitations/{invitation_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - name: invitation_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Espacios]
+      operationId: revokeInvitation
+      summary: Revocar una invitación
+      description: Con el token, `owner` o `admin`. Su enlace deja de valer al momento.
+      security:
+        - panelToken: []
+      responses:
+        '204': { description: Revocada. }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404':
+          description: '`workspace-not-found` o `invitation-not-found`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: '`members-managed-by-sello`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /invitation-lookups:
+    post:
+      tags: [Espacios]
+      operationId: lookupInvitation
+      summary: Lo que dice una invitación
+      description: |
+        Con el token de la persona que abrió el enlace, antes de aceptarla:
+        el espacio, el correo al que se envió, el rol y su estado. Una
+        revocada o un token que no es de una invitación es
+        `404 invitation-not-found`.
+      security:
+        - panelToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitationToken' }
+      responses:
+        '200':
+          description: La invitación.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitationLookup' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /invitation-acceptances:
+    post:
+      tags: [Espacios]
+      operationId: acceptInvitation
+      summary: Aceptar una invitación
+      description: |
+        Con el token de la persona, cuyo `email` tiene que ser el de la
+        invitación (sin importar mayúsculas). Entra al espacio con el rol de
+        la invitación; quien ya estaba conserva el suyo. Aceptarla otra vez
+        con la misma cuenta responde lo mismo.
+      security:
+        - panelToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitationToken' }
+      responses:
+        '200':
+          description: El espacio, con el rol de la persona.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Workspace' }
+        '403':
+          description: '`invitation-email-mismatch`: la invitación es para otro correo.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '404':
+          description: '`invitation-not-found`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: '`workspace-full`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '410':
+          description: '`invitation-expired` o `invitation-used` (otra cuenta ya la aceptó).'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /workspaces/{workspace_id}/usage:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -375,6 +614,8 @@ paths:
         delegación `locked` (`sign`, `certificates:read`,
         `certificates:write`), y no se crea una segunda; si esa organización
         tiene otro NIT u otro país que los pedidos, `409 organization-mismatch`.
+        Una nueva que pasaría las organizaciones del plan del espacio
+        (`limits.organizations`) es `409 organization-limit-reached`.
         Desde cualquier otro
         espacio sigue siendo `409`.
       requestBody:
@@ -395,7 +636,11 @@ paths:
               schema: { $ref: '#/components/schemas/Organization' }
         '400': { $ref: '#/components/responses/Problem' }
         '403': { $ref: '#/components/responses/Problem' }
-        '409': { $ref: '#/components/responses/Problem' }
+        '409':
+          description: '`sello-workspace-linked`, `organization-mismatch` u `organization-limit-reached`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /workspaces/{workspace_id}/organizations/{organization_id}:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -454,7 +699,7 @@ paths:
       tags: [Firma]
       operationId: signFromPanel
       summary: Firmar de prueba desde el panel
-      description: Lo mismo que `POST /signatures`, con el token del panel. Un `member` firma solo en `test`.
+      description: Lo mismo que `POST /signatures`, con el token del panel, y con los límites del espacio (sin los de una clave). Un `member` firma solo en `test`.
       security:
         - panelToken: []
       parameters:
@@ -481,6 +726,7 @@ paths:
         '409': { $ref: '#/components/responses/Problem' }
         '415': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/LimitReached' }
         '501': { $ref: '#/components/responses/Problem' }
 
   /workspaces/{workspace_id}/organizations/{organization_id}/certificates:
@@ -737,7 +983,11 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
         '409':
-          description: '`organization-exists`: el espacio ya tiene una organización con ese país y NIT.'
+          description: |
+            `organization-exists` (el espacio ya tiene una organización con
+            ese país y NIT) u `organization-limit-reached` (con ellas, el
+            espacio pasaría las organizaciones de su plan: no se trae
+            ninguna).
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -774,7 +1024,10 @@ paths:
       summary: Crear una clave
       description: |
         Pide `keys:write`. Una clave que crea otra no le da más de lo que
-        tiene: ni otros scopes, ni otro ambiente, ni otra organización.
+        tiene: ni otros scopes, ni otro ambiente, ni otra organización, ni
+        más firmas por minuto. `requests_per_minute` es el límite de firmas
+        por minuto de la clave, que se suma al del espacio: así una
+        integración no gasta el de las demás.
       requestBody:
         required: true
         content:
@@ -790,6 +1043,10 @@ paths:
                   minItems: 1
                   items: { $ref: '#/components/schemas/Scope' }
                 organization_id: { type: [string, 'null'], format: uuid }
+                requests_per_minute:
+                  type: [integer, 'null']
+                  minimum: 1
+                  maximum: 1000000
       responses:
         '201':
           description: La clave, con `key`, que no se vuelve a mostrar.
@@ -832,7 +1089,9 @@ paths:
         Lo que firmó el espacio y, para sus organizaciones, lo que firmó con
         ellas otro espacio por delegación (`signed_by_workspace_id`, sin su
         `api_key_id` ni su `user_id`). Pide `logs:read`. Nunca guarda el
-        documento.
+        documento. Cada firma se guarda los días de `limits.retention_days`
+        del espacio que la hizo, también la que hizo con una organización de
+        otro: después se borra del registro, y sigue contada en el uso.
       parameters:
         - name: organization_id
           in: query
@@ -1003,6 +1262,40 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    LimitReached:
+      description: |
+        `rate-limited`: la clave o el espacio que firma llegó a sus firmas
+        por minuto (`applies_to`: `api_key` o `workspace`, y `limit`); cada
+        minuto empieza de cero, y `Retry-After` dice cuántos segundos faltan.
+        `monthly-limit-reached`: el espacio que firma llegó a las firmas del
+        mes que su plan le deja en el ambiente (`environment`, `limit`), que
+        en un plan de pago son las de su excedente; vuelven a contar el
+        primer día del mes siguiente, en UTC (`resets_at`, y `Retry-After`).
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+        X-RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+        X-RateLimit-Remaining:
+          { $ref: '#/components/headers/RateLimitRemaining' }
+        X-RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  headers:
+    RetryAfter:
+      description: Los segundos hasta poder volver a firmar.
+      schema: { type: integer, minimum: 1 }
+    RateLimitLimit:
+      description: |
+        Las firmas por minuto del límite más estrecho de los que aplican (el
+        de la clave o el del espacio). Solo si alguno aplica.
+      schema: { type: integer }
+    RateLimitRemaining:
+      description: Las que ese límite deja en este minuto, después de esta.
+      schema: { type: integer }
+    RateLimitReset:
+      description: Los segundos hasta que empiece el minuto siguiente.
+      schema: { type: integer }
 
   schemas:
     Problem:
@@ -1028,10 +1321,30 @@ components:
             `invalid-document`, `payload-too-large`, `workspace-closed`,
             `workspace-full`, `ask-admin`, `sello-organization-unknown`,
             `sello-organization-closed`, `billing-unavailable`,
+            `member-not-found`, `members-managed-by-sello`,
+            `already-member`, `last-owner`, `invitation-not-found`,
+            `invitation-exists`, `invitation-expired`, `invitation-used`,
+            `invitation-email-mismatch`, `rate-limited`,
+            `monthly-limit-reached`, `organization-limit-reached`,
             `not-cloud`, `internal`.
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
+        limit:
+          type: integer
+          description: 'En los de los límites: el que se alcanzó.'
+        applies_to:
+          type: string
+          enum: [api_key, workspace]
+          description: 'En `rate-limited`: de quién es el límite.'
+        environment:
+          $ref: '#/components/schemas/Environment'
+          description: 'En `monthly-limit-reached`: el ambiente.'
+        resets_at:
+          type: string
+          format: date-time
+          description: 'En `monthly-limit-reached`: cuándo vuelve a contar, el primer día del mes siguiente (UTC).'
+
     NextCursor:
       type: [string, 'null']
     Environment:
@@ -1104,7 +1417,14 @@ components:
       allOf:
         - $ref: '#/components/schemas/WorkspaceSummary'
         - type: object
-          required: [sello_workspace_id, closed, limits, created_at]
+          required:
+            [
+              sello_workspace_id,
+              closed,
+              limits,
+              requests_per_minute,
+              created_at,
+            ]
           properties:
             role:
               description: El de la persona; `null` con una clave.
@@ -1118,10 +1438,35 @@ components:
                 description: La organización del IdP se borró; el espacio ya no firma.,
               }
             limits: { $ref: '#/components/schemas/Limits' }
+            requests_per_minute:
+              type: [integer, 'null']
+              description: |
+                Las firmas por minuto que el espacio se puso, por debajo de
+                `limits.requests_per_minute`; `null` es el del plan.
             created_at: { type: string, format: date-time }
     Limits:
       type: object
-      description: Los límites del plan; `null` es sin límite.
+      description: |
+        Los límites del plan, que el API aplica; `null` es sin límite. En la
+        nube, los que empuja billing. En un espacio sin plan (una instalación
+        propia), los que la consola le puso (`api workspace limits`) y, donde
+        no le puso, los de la instalación (`SIGN_RATE_LIMIT_PER_MINUTE` y
+        `SIGN_LOG_RETENTION_DAYS`).
+
+        - `organizations`: las que el espacio puede tener (crear o traer una
+          más es `409 organization-limit-reached`).
+        - `prod_signatures` y `test_signatures`: las firmas del mes, por
+          ambiente; `prod_hard_cap` y `test_hard_cap`, donde se rechaza la
+          siguiente (`429 monthly-limit-reached`). En un plan de pago, las de
+          producción siguen hasta el doble y se cobran como excedente, y las
+          de prueba, hasta un 10 % más, sin cobrarse; sin tope, el tope es la
+          cuota. Cuenta lo que firma el espacio, también con organizaciones
+          delegadas.
+        - `members`: los asientos que admite.
+        - `requests_per_minute`: el techo de sus firmas por minuto
+          (`429 rate-limited`).
+        - `retention_days`: los días que el registro de firmas guarda lo que
+          firmó el espacio; después se borra (cada hora). `null`, sin plazo.
       required:
         [
           organizations,
@@ -1154,6 +1499,57 @@ components:
         email: { type: [string, 'null'] }
         name: { type: [string, 'null'] }
         role: { $ref: '#/components/schemas/Role' }
+    InvitedBy:
+      type: object
+      required: [user_id, email, name]
+      properties:
+        user_id: { type: string, description: El usuario del panel que invitó. }
+        email: { type: [string, 'null'] }
+        name: { type: [string, 'null'] }
+    Invitation:
+      type: object
+      required: [id, email, role, status, invited_by, expires_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        email:
+          {
+            type: string,
+            description: 'En minúsculas: se compara con el de la cuenta que la acepta.',
+          }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { type: string, enum: [pending, expired] }
+        invited_by: { $ref: '#/components/schemas/InvitedBy' }
+        expires_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    InvitationToken:
+      type: object
+      required: [token]
+      properties:
+        token:
+          {
+            type: string,
+            description: 'El de la invitación (`sign_inv_…`), del enlace del correo.',
+          }
+    InvitationLookup:
+      type: object
+      required:
+        [
+          workspace_id,
+          workspace_name,
+          email,
+          role,
+          status,
+          invited_by,
+          expires_at,
+        ]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        workspace_name: { type: string }
+        email: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { type: string, enum: [pending, expired, accepted] }
+        invited_by: { $ref: '#/components/schemas/InvitedBy' }
+        expires_at: { type: string, format: date-time }
     SelloOrganization:
       type: object
       required: [id, name, country, role, status, workspace_id, max_members]
@@ -1298,6 +1694,7 @@ components:
           scopes,
           organization_id,
           prefix,
+          requests_per_minute,
           last_used_at,
           created_at,
         ]
@@ -1314,6 +1711,9 @@ components:
             type: string,
             description: 'El comienzo de la clave, para reconocerla: `sign_test_3kq9AbCd`.',
           }
+        requests_per_minute:
+          type: [integer, 'null']
+          description: Las firmas por minuto de la clave, además de las del espacio; `null`, sin límite propio.
         last_used_at: { type: [string, 'null'], format: date-time }
         created_at: { type: string, format: date-time }
     SignatureEntry:

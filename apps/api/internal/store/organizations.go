@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -118,30 +119,71 @@ type NewOrganization struct {
 
 // CreateOrganization creates an organization in its space, or returns the
 // one the space already has with that country and tax id (created false).
-// A sello_workspace_id already linked elsewhere is ErrSelloLinked.
+// A sello_workspace_id already linked elsewhere is ErrSelloLinked; a new
+// one past the organizations the space's plan allows, ErrOrganizationLimit.
 func (s *Store) CreateOrganization(ctx context.Context, n NewOrganization) (Organization, bool, error) {
 	id := ids.New()
-	tag, err := s.pool.Exec(ctx, `INSERT INTO organizations
-		(id, workspace_id, name, tax_id, tax_id_key, country, contact_email, sello_workspace_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (workspace_id, country, tax_id_key) DO NOTHING`,
-		id, n.WorkspaceID, n.Name, strings.TrimSpace(n.TaxID), model.TaxIDKey(n.TaxID), n.Country, n.ContactEmail, n.SelloWorkspaceID)
-	if c, ok := uniqueViolation(err); ok && strings.Contains(c, "sello_workspace_id") {
-		return Organization{}, false, ErrSelloLinked
-	}
+	key := model.TaxIDKey(n.TaxID)
+	created := false
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		allowed, err := lockOrganizationLimit(ctx, tx, n.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		var existing string
+		err = tx.QueryRow(ctx, `SELECT id FROM organizations WHERE workspace_id = $1 AND country = $2 AND tax_id_key = $3`,
+			n.WorkspaceID, n.Country, key).Scan(&existing)
+		if err == nil {
+			id = existing
+			return nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if err := withinOrganizationLimit(ctx, tx, n.WorkspaceID, allowed, 1); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO organizations
+			(id, workspace_id, name, tax_id, tax_id_key, country, contact_email, sello_workspace_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			id, n.WorkspaceID, n.Name, strings.TrimSpace(n.TaxID), key, n.Country, n.ContactEmail, n.SelloWorkspaceID)
+		if c, ok := uniqueViolation(err); ok && strings.Contains(c, "sello_workspace_id") {
+			return ErrSelloLinked
+		}
+		created = err == nil
+		return err
+	})
 	if err != nil {
 		return Organization{}, false, err
 	}
-	created := tag.RowsAffected() == 1
-	if !created {
-		err := s.pool.QueryRow(ctx, `SELECT id FROM organizations WHERE workspace_id = $1 AND country = $2 AND tax_id_key = $3`,
-			n.WorkspaceID, n.Country, model.TaxIDKey(n.TaxID)).Scan(&id)
-		if err != nil {
-			return Organization{}, false, notFound(err)
-		}
-	}
 	o, err := s.ResolveOrganization(ctx, n.WorkspaceID, id, "")
 	return o, created, err
+}
+
+// lockOrganizationLimit reads how many organizations the space's plan
+// allows (nil: no limit), locking its row so that two creations or claims
+// at once can't both take the last one. FOR NO KEY UPDATE doesn't wait for
+// the signatures being logged, which only hold a key share of it.
+func lockOrganizationLimit(ctx context.Context, tx pgx.Tx, workspaceID string) (*int, error) {
+	var allowed *int
+	err := tx.QueryRow(ctx, `SELECT max_organizations FROM workspaces WHERE id = $1 FOR NO KEY UPDATE`, workspaceID).Scan(&allowed)
+	return allowed, notFound(err)
+}
+
+// withinOrganizationLimit is ErrOrganizationLimit if adding more
+// organizations to those the space owns passes allowed.
+func withinOrganizationLimit(ctx context.Context, tx pgx.Tx, workspaceID string, allowed *int, more int) error {
+	if allowed == nil {
+		return nil
+	}
+	var owned int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM organizations WHERE workspace_id = $1`, workspaceID).Scan(&owned); err != nil {
+		return err
+	}
+	if owned+more > *allowed {
+		return ErrOrganizationLimit
+	}
+	return nil
 }
 
 // DelegateLinked is the platform registering, after a company, the
@@ -271,6 +313,10 @@ func (s *Store) ClaimOrganizations(ctx context.Context, target, platformID strin
 		}
 	}
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		allowed, err := lockOrganizationLimit(ctx, tx, target)
+		if err != nil {
+			return err
+		}
 		rows, err := tx.Query(ctx, `SELECT id FROM organizations
 			WHERE id = ANY($1) AND workspace_id = $2 AND sello_workspace_id = ANY($3)
 			FOR UPDATE`, orgIDs, platformID, selloIDs)
@@ -283,6 +329,9 @@ func (s *Store) ClaimOrganizations(ctx context.Context, target, platformID strin
 		}
 		if len(found) != len(dedupe(orgIDs)) {
 			return ErrNotClaimable
+		}
+		if err := withinOrganizationLimit(ctx, tx, target, allowed, len(found)); err != nil {
+			return err
 		}
 		// The target may have had a delegation of one: it owns it now.
 		if _, err := tx.Exec(ctx, `DELETE FROM delegations WHERE workspace_id = $1 AND organization_id = ANY($2)`, target, found); err != nil {

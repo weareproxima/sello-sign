@@ -34,17 +34,24 @@ func NewKey(env model.Environment) (key string, hash []byte, prefix string) {
 	b.WriteString(KeyPrefix)
 	b.WriteString(string(env))
 	b.WriteByte('_')
-	max := big.NewInt(int64(len(base62)))
-	for range keySecretLen {
-		n, err := rand.Int(rand.Reader, max)
-		if err != nil {
-			panic(err)
-		}
-		b.WriteByte(base62[n.Int64()])
-	}
+	b.WriteString(randomBase62(keySecretLen))
 	key = b.String()
 	h := HashKey(key)
 	return key, h, key[:len(KeyPrefix)+len(env)+1+displayLen]
+}
+
+// randomBase62 is n characters of base62 from crypto/rand.
+func randomBase62(n int) string {
+	var b strings.Builder
+	max := big.NewInt(int64(len(base62)))
+	for range n {
+		r, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			panic(err)
+		}
+		b.WriteByte(base62[r.Int64()])
+	}
+	return b.String()
 }
 
 // HashKey is what the database keeps of a key.
@@ -80,6 +87,9 @@ type Key struct {
 	OrganizationID string            `json:"organization_id,omitempty"`
 	Environment    model.Environment `json:"environment"`
 	Scopes         []model.Scope     `json:"scopes"`
+	// RequestsPerMinute is the key's own signing rate, on top of its
+	// space's; nil is none.
+	RequestsPerMinute *int `json:"requests_per_minute,omitempty"`
 }
 
 // User is a person, from the panel's token.

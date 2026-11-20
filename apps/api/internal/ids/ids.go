@@ -116,3 +116,13 @@ func Canonical(s string) (string, bool) {
 	}
 	return u.String(), true
 }
+
+// Floor is the smallest UUIDv7 of the instant t: every id made at t or
+// later sorts at or above it, and every id made before it, below.
+func Floor(t time.Time) string {
+	var u ID
+	ms := uint64(t.UnixMilli())
+	u[0], u[1], u[2] = byte(ms>>40), byte(ms>>32), byte(ms>>24)
+	u[3], u[4], u[5] = byte(ms>>16), byte(ms>>8), byte(ms)
+	return u.String()
+}

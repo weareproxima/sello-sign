@@ -241,3 +241,42 @@ func (r Reach) Allows(s Scope) bool {
 	}
 	return r.Relation == Delegated && HasScope(r.Scopes, s)
 }
+
+// CanInvite says whether a person with role actor may invite someone as
+// role: owners and admins invite, and only an owner invites an owner.
+func CanInvite(actor, role Role) bool {
+	return actor.Manages() && (role != Owner || actor == Owner)
+}
+
+// CanSetRole says whether a person with role actor may change a member's
+// role from from to to: owners and admins change roles, and only an owner
+// makes or unmakes an owner. That the space keeps an owner is the store's
+// to check, under a lock.
+func CanSetRole(actor, from, to Role) bool {
+	if !actor.Manages() {
+		return false
+	}
+	if from == Owner || to == Owner {
+		return actor == Owner
+	}
+	return true
+}
+
+// NormalizeEmail is an e-mail address as it's compared: trimmed and in
+// lower case. Mail servers don't care about case.
+func NormalizeEmail(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+
+// ValidEmail says whether s, normalized, looks like an address: one @ with
+// something on both sides, a dot in the domain, no spaces, at most 320
+// characters. The e-mail itself is the real check.
+func ValidEmail(s string) bool {
+	if len(s) > 320 || strings.ContainsAny(s, " \t\r\n<>,;\"") {
+		return false
+	}
+	local, domain, ok := strings.Cut(s, "@")
+	if !ok || local == "" || strings.Contains(domain, "@") {
+		return false
+	}
+	dot := strings.LastIndex(domain, ".")
+	return dot > 0 && dot < len(domain)-1
+}

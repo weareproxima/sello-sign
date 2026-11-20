@@ -9,8 +9,9 @@ API_URL=http://127.0.0.1:4441
 CLOUD=false
 OIDC_ONLY=false
 OIDC_ISSUER=
-# Sello's site (CORS of /sales-inquiry) and the sales e-mail. Without
-# RESEND_API_KEY the inquiry is written to the console.
+# Sello's site (CORS of /sales-inquiry) and the panel's e-mail (the password
+# reset, the invitations and the sales inquiry). Without RESEND_API_KEY they
+# are written to the console.
 PUBLIC_SITE_URL=http://sello.test
 RESEND_API_KEY=
 SALES_EMAIL=sales@sign.sello.tax

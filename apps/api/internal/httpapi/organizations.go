@@ -142,6 +142,10 @@ func (s *Server) createOrganization(w http.ResponseWriter, r *http.Request, c *c
 		writeProblem(w, errSelloMismatch)
 		return
 	}
+	if errors.Is(err, store.ErrOrganizationLimit) {
+		writeProblem(w, organizationLimitReached(c.ws))
+		return
+	}
 	if err != nil {
 		internalError(w, r, err)
 		return
@@ -350,6 +354,9 @@ func (s *Server) claimOrganizations(w http.ResponseWriter, r *http.Request, c *c
 		return
 	case errors.Is(err, store.ErrOrganizationExists):
 		writeProblem(w, problem(http.StatusConflict, "organization-exists", "El espacio ya tiene una organización con ese país y NIT."))
+		return
+	case errors.Is(err, store.ErrOrganizationLimit):
+		writeProblem(w, organizationLimitReached(c.ws))
 		return
 	case err != nil:
 		internalError(w, r, err)
