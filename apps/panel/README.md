@@ -75,6 +75,10 @@ atrás, en [`docs/deploy.md`](../../docs/deploy.md).
 - `src/routes/`: `_auth.*` (entrar), `_app.*` (con sesión), `_app.w.$workspaceId.*`
   (un espacio, también «Su cuenta», `account`, y «Verificar una firma»,
   `verify`).
+- `src/server/`: lo que hace el servidor del panel con la sesión de la
+  persona: invitar y reenviar una invitación con su correo
+  (`invitations.ts`) y borrar la cuenta en una instalación propia
+  (`account.ts`: primero `DELETE /me` en el API, después better-auth).
 - `src/lib/verify-client.ts`: el verificador de firmas que corre en el
   navegador, copia exacta del de `../sign-old` (y del de `sello.tax/sign/verify`):
   no se edita aquí ni pasa por Prettier.

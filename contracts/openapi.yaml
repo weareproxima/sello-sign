@@ -34,6 +34,7 @@ tags:
   - name: Claves
   - name: Registro
   - name: Billing
+  - name: MCP
   - name: Sistema
 security:
   - apiKey: []
@@ -109,9 +110,23 @@ paths:
       tags: [Firma]
       operationId: verify
       summary: Verificar una firma
-      description: Verifica una firma con el certificado activo del ambiente de la clave.
+      description: |
+        Verifica una firma con el certificado activo de la organización en un
+        ambiente, también si ya venció (verifica lo que firmó mientras valía).
+        No guarda nada: ni el documento ni el resultado, y no cuenta en el
+        uso.
+
+        - Con una clave con `sign`: entre las organizaciones que alcanza, en
+          el ambiente de la clave (`environment`, si va, es ese).
+        - Con el token del panel: cualquier miembro, de cualquier rol, de un
+          espacio dueño de la organización o al que se le delegó con `sign`
+          o `certificates:read`, en el ambiente que dice `environment`
+          (obligatorio). `X-Organization-Id` se busca entre las
+          organizaciones de todos los espacios de la persona: un NIT que
+          nombra a más de una es `409 organization-ambiguous`.
       security:
         - apiKey: []
+        - panelToken: []
       parameters:
         - $ref: '#/components/parameters/OrganizationHeader'
       requestBody:
@@ -125,6 +140,9 @@ paths:
                 signature:
                   type: string
                   description: El JWS (El Salvador) o el XML firmado.
+                environment:
+                  $ref: '#/components/schemas/Environment'
+                  description: Obligatorio con el token; con una clave, el suyo o nada.
       responses:
         '200':
           description: El resultado.
@@ -159,6 +177,57 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/WorkspaceSummary' }
         '401': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [Espacios]
+      operationId: deleteMe
+      summary: Borrar lo que el API guarda de la persona (instalación propia)
+      description: |
+        Lo llama el panel antes de borrar la cuenta. La persona sale de sus
+        espacios, y los espacios de los que era el único miembro se borran
+        con todo lo suyo (organizaciones, certificados, delegaciones, claves,
+        invitaciones, registro y uso). Lo que hizo en los espacios que quedan
+        se queda: es de ellos. Si es el único propietario de un espacio con
+        otros miembros, o el único miembro de uno cuyas organizaciones usan
+        otros espacios por delegación, es `409 account-has-workspaces` y no
+        cambia nada (`GET /me/account-deletion` dice cuál). En la nube no
+        existe (`404 not-self-hosted`): la cuenta se borra escribiendo a
+        Sello.
+      security:
+        - panelToken: []
+      responses:
+        '204': { description: Borrado. }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404':
+          description: '`not-self-hosted`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: '`account-has-workspaces`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /me/account-deletion:
+    get:
+      tags: [Espacios]
+      operationId: getAccountDeletion
+      summary: Qué haría borrar la cuenta (instalación propia)
+      description: |
+        Qué le pasaría a cada espacio de la persona si borrara su cuenta
+        ahora, para que lo vea antes de confirmarlo. En la nube,
+        `404 not-self-hosted`.
+      security:
+        - panelToken: []
+      responses:
+        '200':
+          description: Lo que pasaría.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountDeletion' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
   /me/sello-organizations:
     get:
       tags: [Espacios]
@@ -373,6 +442,67 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
+    delete:
+      tags: [Espacios]
+      operationId: removeMember
+      summary: Quitar a un miembro, o salir del espacio
+      description: |
+        Con el token. `owner` y `admin` quitan a otros; solo un `owner`
+        quita a otro `owner`. Cualquier miembro sale por sí mismo con su
+        propio `user_id`. El espacio nunca se queda sin propietario: quitar
+        al último es `409 last-owner`. Lo del espacio se queda (las claves
+        que creó, las invitaciones que mandó, sus firmas en el registro).
+        Solo los miembros que se agregaron en Sign; en un espacio de una
+        organización del IdP, `409 members-managed-by-sello`.
+      security:
+        - panelToken: []
+      responses:
+        '204': { description: Quitado. }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404':
+          description: '`workspace-not-found` o `member-not-found`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: '`last-owner` o `members-managed-by-sello`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /workspaces/{workspace_id}/export:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Espacios]
+      operationId: exportWorkspace
+      summary: Exportar los datos del espacio
+      description: |
+        Con el token, `owner` o `admin`. Un JSON hecho al momento, que no se
+        guarda en ningún lado (`Content-Disposition: attachment`): el
+        espacio, sus organizaciones (las propias y las delegadas) con los
+        datos públicos de sus certificados (nunca el material ni el PIN) y
+        sus delegaciones, sus claves (también las revocadas, nunca su hash),
+        sus miembros, sus invitaciones abiertas (nunca su token), su uso y su
+        registro de firmas tal como está, dentro de su retención. El
+        registro va al final y se escribe a medida que se lee; si falla a
+        medias, la descarga se corta.
+      security:
+        - panelToken: []
+      responses:
+        '200':
+          description: La exportación.
+          headers:
+            Content-Disposition:
+              schema:
+                {
+                  type: string,
+                  example: 'attachment; filename="sello-sign-0193…-2026-11-20.json"',
+                }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkspaceExport' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
   /workspaces/{workspace_id}/invitations:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
@@ -472,6 +602,48 @@ paths:
               schema: { $ref: '#/components/schemas/Problem' }
         '409':
           description: '`members-managed-by-sello`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /workspaces/{workspace_id}/invitations/{invitation_id}/renewals:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - name: invitation_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Espacios]
+      operationId: renewInvitation
+      summary: Renovar una invitación, para reenviarla
+      description: |
+        Con el token, `owner` o `admin`; solo un `owner` renueva la de un
+        `owner`. La misma invitación (su id, su correo y su rol), vencida o
+        no, con un `token` nuevo y 7 días desde ahora: el enlace anterior
+        deja de valer. Responde el `token` una sola vez, como al crearla; el
+        panel manda el correo otra vez. Valen las comprobaciones de crearla.
+      security:
+        - panelToken: []
+      responses:
+        '200':
+          description: La invitación, con `token`.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Invitation'
+                  - type: object
+                    required: [token]
+                    properties:
+                      token: { type: string, example: sign_inv_7Hq2… }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404':
+          description: '`workspace-not-found` o `invitation-not-found` (también una aceptada o revocada).'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: '`already-member`, `workspace-full` o `members-managed-by-sello`.'
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -1182,6 +1354,72 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
 
+  /mcp:
+    post:
+      tags: [MCP]
+      operationId: mcp
+      summary: Servidor MCP
+      description: |
+        El API como servidor [Model Context Protocol](https://modelcontextprotocol.io),
+        para que un agente firme, verifique y consulte con herramientas: un
+        mensaje JSON-RPC 2.0 por `POST` (Streamable HTTP sin estado, con el
+        SDK oficial de Go), que se responde con JSON. Sin sesión: `GET` y
+        `DELETE` son `405`. Las versiones del protocolo, las del SDK (de
+        `2024-11-05` a `2026-07-28`).
+
+        Pide una clave de API, en `X-API-Key` o como
+        `Authorization: Bearer sign_…` (nunca el token del panel). `tools/list`
+        da solo las herramientas que sus scopes permiten, y cada herramienta
+        llama en el mismo proceso a su ruta de este contrato con la misma
+        clave: los permisos, el alcance de la organización, los límites, los
+        errores y el registro de firmas son los de esa ruta. Un error de la
+        ruta llega como resultado de la herramienta (`isError`), con su
+        problema en JSON y, si lo hay, `retry_after`. Las herramientas, en
+        `contracts/README.md` («Servidor MCP»).
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Un mensaje JSON-RPC 2.0 de MCP.
+              required: [jsonrpc, method]
+              properties:
+                jsonrpc: { type: string, enum: ['2.0'] }
+                id: { type: [string, integer] }
+                method: { type: string }
+                params: { type: object }
+      responses:
+        '200':
+          description: La respuesta JSON-RPC a una petición.
+          content:
+            application/json:
+              schema: { type: object }
+        '202': { description: Una notificación o una respuesta, aceptada. }
+        '400':
+          description: 'Un mensaje que no es JSON-RPC, o sin `Accept: application/json, text/event-stream`.'
+        '401': { $ref: '#/components/responses/Problem' }
+        '403':
+          description: Una petición de un navegador desde otro origen.
+    get:
+      tags: [MCP]
+      operationId: mcpStream
+      summary: Sin flujo del servidor
+      description: El servidor MCP no tiene sesiones ni abre un flujo SSE.
+      security: []
+      responses:
+        '405': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [MCP]
+      operationId: mcpSessionEnd
+      summary: Sin sesión que cerrar
+      description: El servidor MCP no tiene sesiones.
+      security: []
+      responses:
+        '405': { $ref: '#/components/responses/Problem' }
+
   /health:
     get:
       tags: [Sistema]
@@ -1326,7 +1564,8 @@ components:
             `invitation-exists`, `invitation-expired`, `invitation-used`,
             `invitation-email-mismatch`, `rate-limited`,
             `monthly-limit-reached`, `organization-limit-reached`,
-            `not-cloud`, `internal`.
+            `account-has-workspaces`, `not-cloud`, `not-self-hosted`,
+            `internal`.
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
@@ -1749,6 +1988,98 @@ components:
         signed_by_workspace_id: { type: string, format: uuid }
         duration_ms: { type: integer }
         created_at: { type: string, format: date-time }
+    AccountDeletion:
+      type: object
+      required: [allowed, workspaces]
+      properties:
+        allowed:
+          type: boolean
+          description: Si `DELETE /me` borraría ahora la cuenta.
+        workspaces:
+          type: array
+          items:
+            type: object
+            required: [id, name, role, members, organizations, outcome]
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+              role: { $ref: '#/components/schemas/Role' }
+              members: { type: integer }
+              organizations: { type: integer }
+              outcome:
+                type: string
+                enum: [leave, delete, transfer, delegated]
+                description: |
+                  `leave`: la persona sale. `delete`: es su único miembro y se
+                  borra con todo lo suyo. `transfer`: es su único propietario y
+                  hay otros miembros; antes hay que hacer propietario a otro.
+                  `delegated`: es su único miembro, pero otros espacios usan
+                  sus organizaciones por delegación; antes hay que quitarlas.
+                  Los dos últimos impiden borrar la cuenta.
+    WorkspaceExport:
+      type: object
+      required:
+        [
+          format,
+          exported_at,
+          workspace,
+          organizations,
+          api_keys,
+          members,
+          invitations,
+          usage,
+          signatures,
+        ]
+      properties:
+        format: { type: string, const: sello-sign-export/1 }
+        exported_at: { type: string, format: date-time }
+        workspace: { $ref: '#/components/schemas/Workspace' }
+        organizations:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Organization'
+              - type: object
+                required: [certificates, active_certificates, delegations]
+                properties:
+                  certificates:
+                    type: [array, 'null']
+                    description: Todos, solo sus datos públicos; `null` si la delegación no deja leerlos.
+                    items: { $ref: '#/components/schemas/Certificate' }
+                  active_certificates:
+                    description: Lo que `Organization` llama `certificates`.
+                  delegations:
+                    type: [array, 'null']
+                    description: Las que dio una organización propia; `null` en una delegada.
+                    items: { $ref: '#/components/schemas/Delegation' }
+        api_keys:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/ApiKey'
+              - type: object
+                required: [created_by, revoked_at]
+                properties:
+                  created_by: { type: [string, 'null'] }
+                  revoked_at: { type: [string, 'null'], format: date-time }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/Member' }
+        invitations:
+          type: array
+          items: { $ref: '#/components/schemas/Invitation' }
+        usage:
+          type: array
+          items:
+            type: object
+            required: [month, environment, signatures]
+            properties:
+              month: { type: string, example: '2026-11' }
+              environment: { $ref: '#/components/schemas/Environment' }
+              signatures: { type: integer }
+        signatures:
+          type: array
+          items: { $ref: '#/components/schemas/SignatureEntry' }
     BillingState:
       type: object
       description: '`SignStateBody` de `cmd/billing` de Sello.'

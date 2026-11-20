@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { DownloadIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
 	Card,
@@ -14,6 +15,7 @@ import { CopyButton } from '#/components/copy-button'
 import { CountrySelect } from '#/components/country-select'
 import { FormError, FormField, Mono, Page, PageHeader } from '#/components/page'
 import { api, errorMessage, type Workspace } from '#/lib/api'
+import { exportFileName, saveFile } from '#/lib/download'
 import { notify } from '#/lib/notify'
 import { useWorkspace } from '#/lib/workspace'
 
@@ -32,7 +34,7 @@ function WorkspaceSettings() {
 		<Page size="narrow">
 			<PageHeader
 				title="General"
-				description="El nombre del espacio, su país principal y su identificador."
+				description="El nombre del espacio, su país principal, su identificador y sus datos."
 			/>
 			{workspace.isPending ? (
 				<Skeleton className="h-64" />
@@ -127,6 +129,49 @@ function Details({ workspace }: { workspace: Workspace }) {
 					<CopyButton value={workspace.id} />
 				</div>
 			</Card>
+			{canManage ? <Export workspaceId={workspace.id} /> : null}
 		</>
+	)
+}
+
+/** Everything of the space as a JSON file, made at the moment by the API
+ * (`GET /workspaces/{w}/export`) and kept nowhere but where it's saved. */
+function Export({ workspaceId }: { workspaceId: string }) {
+	const download = useMutation({
+		mutationFn: () => api.exportWorkspace(workspaceId),
+		onSuccess: (blob) => {
+			saveFile(blob, exportFileName(workspaceId, new Date()))
+			notify('Datos exportados.')
+		},
+	})
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>Exportar los datos</CardTitle>
+				<CardDescription>
+					Un archivo JSON con el espacio, sus organizaciones, los datos públicos
+					de sus certificados, sus delegaciones, sus claves de API, sus
+					miembros, sus invitaciones pendientes, su uso y su registro de firmas.
+					Nunca lleva la llave privada de un certificado, su PIN ni una clave de
+					API completa. Se arma al momento y no se guarda en Sello Sign.
+				</CardDescription>
+			</CardHeader>
+			<FormError
+				message={
+					download.error
+						? errorMessage(download.error, 'exportar los datos')
+						: null
+				}
+			/>
+			<Button
+				variant="secondary"
+				className="w-fit"
+				disabled={download.isPending}
+				onClick={() => download.mutate()}
+			>
+				<DownloadIcon />
+				{download.isPending ? 'Exportando…' : 'Exportar los datos'}
+			</Button>
+		</Card>
 	)
 }

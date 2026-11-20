@@ -74,8 +74,10 @@ func (s *Signer) Seal(certificateID string, m signing.Material) ([]byte, error) 
 }
 
 // active loads the organization's active certificate in env and its
-// material, from the cache or by opening it.
-func (s *Signer) active(ctx context.Context, org store.Organization, env model.Environment) (signing.Material, error) {
+// material, from the cache or by opening it. An expired one signs nothing
+// (ErrCertificateExpired), unless expired is allowed: it still verifies
+// what it signed while it was valid.
+func (s *Signer) active(ctx context.Context, org store.Organization, env model.Environment, expired bool) (signing.Material, error) {
 	cert, sealed, err := s.load(ctx, org.ID, env)
 	if errors.Is(err, store.ErrNotFound) {
 		return signing.Material{}, ErrNoActiveCertificate
@@ -83,7 +85,7 @@ func (s *Signer) active(ctx context.Context, org store.Organization, env model.E
 	if err != nil {
 		return signing.Material{}, err
 	}
-	if cert.NotAfter != nil && s.now().After(*cert.NotAfter) {
+	if !expired && cert.NotAfter != nil && s.now().After(*cert.NotAfter) {
 		return signing.Material{}, ErrCertificateExpired
 	}
 	if m, ok := s.material.Get(cert.ID); ok {
@@ -109,7 +111,7 @@ func (s *Signer) Sign(ctx context.Context, org store.Organization, env model.Env
 	if err != nil {
 		return signing.Signed{}, err
 	}
-	m, err := s.active(ctx, org, env)
+	m, err := s.active(ctx, org, env, false)
 	if err != nil {
 		return signing.Signed{}, err
 	}
@@ -117,13 +119,13 @@ func (s *Signer) Sign(ctx context.Context, org store.Organization, env model.Env
 }
 
 // Verify checks a signature against the organization's active certificate
-// in env.
+// in env, also an expired one.
 func (s *Signer) Verify(ctx context.Context, org store.Organization, env model.Environment, signature []byte) (signing.Verification, error) {
 	country, err := s.Country(org.Country)
 	if err != nil {
 		return signing.Verification{}, err
 	}
-	m, err := s.active(ctx, org, env)
+	m, err := s.active(ctx, org, env, true)
 	if err != nil {
 		return signing.Verification{}, err
 	}

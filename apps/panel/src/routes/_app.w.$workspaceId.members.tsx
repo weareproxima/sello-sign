@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import {
 	useMutation,
 	useQuery,
@@ -49,11 +49,16 @@ import {
 } from '#/lib/api'
 import { ROLE_LABELS, formatDate } from '#/lib/format'
 import type { InviteResult } from '#/lib/invitations'
-import { canChangeRole, membersPageUrl, rolesToGive } from '#/lib/members'
+import {
+	canChangeRole,
+	canRemove,
+	membersPageUrl,
+	rolesToGive,
+} from '#/lib/members'
 import { notify } from '#/lib/notify'
 import { buttonVariants } from '#/lib/button-variants'
 import { CODE_BLOCK } from '#/lib/recipes'
-import { inviteMember } from '#/server/invitations'
+import { inviteMember, resendInvitation } from '#/server/invitations'
 import { useMe, useWorkspace } from '#/lib/workspace'
 
 export const Route = createFileRoute('/_app/w/$workspaceId/members')({
@@ -65,6 +70,7 @@ function Members() {
 	const { workspaceId, role, canManage } = useWorkspace()
 	const { config } = Route.useRouteContext()
 	const me = useMe()
+	const myId = me.data?.user.id
 	const queryClient = useQueryClient()
 	const workspace = useQuery({
 		queryKey: ['workspace', workspaceId],
@@ -85,12 +91,11 @@ function Members() {
 		enabled: manages,
 	})
 	const [inviting, setInviting] = React.useState(false)
-	const [invited, setInvited] = React.useState<Extract<
-		InviteResult,
-		{ ok: true }
-	> | null>(null)
+	const [invited, setInvited] = React.useState<Sent | null>(null)
 	const [revoking, setRevoking] = React.useState<Invitation | null>(null)
 	const [demotingSelf, setDemotingSelf] = React.useState<Role | null>(null)
+	const [removing, setRemoving] = React.useState<Member | null>(null)
+	const navigate = useNavigate()
 
 	const revoke = useMutation({
 		mutationFn: (invitation: Invitation) =>
@@ -104,6 +109,50 @@ function Members() {
 		},
 		onError: (error) =>
 			notify(errorMessage(error, 'revocar la invitación'), 'error'),
+	})
+	const resend = useMutation({
+		mutationFn: async (invitation: Invitation) => {
+			const result = await resendInvitation({
+				data: { workspaceId, invitationId: invitation.id },
+			})
+			if (!result.ok) throw new ApiError(result.status, result.problem)
+			return result
+		},
+		onSuccess: async (result) => {
+			await queryClient.invalidateQueries({
+				queryKey: ['invitations', workspaceId],
+			})
+			setInvited({ ...result, resent: true })
+		},
+		onError: (error) =>
+			notify(errorMessage(error, 'reenviar la invitación'), 'error'),
+	})
+	const remove = useMutation({
+		mutationFn: (member: Member) =>
+			api.removeMember(workspaceId, member.user_id),
+		onSuccess: async (_, member) => {
+			setRemoving(null)
+			if (member.user_id === myId) {
+				await queryClient.invalidateQueries({ queryKey: ['me'] })
+				notify('Salió del espacio.')
+				await navigate({ to: '/', replace: true })
+				return
+			}
+			await queryClient.invalidateQueries({
+				queryKey: ['members', workspaceId],
+			})
+			notify('Miembro quitado.')
+		},
+		onError: (error) => {
+			setRemoving(null)
+			notify(
+				errorMessage(
+					error,
+					removing?.user_id === myId ? 'salir del espacio' : 'quitar al miembro'
+				),
+				'error'
+			)
+		},
 	})
 	const changeRole = useMutation({
 		mutationFn: ({ userId, role }: { userId: string; role: Role }) =>
@@ -122,8 +171,9 @@ function Members() {
 		},
 	})
 
-	const myId = me.data?.user.id
 	const toGive = rolesToGive(role)
+	// The last owner can't be removed nor leave (`last-owner`): not offered.
+	const owners = members.data?.filter((m) => m.role === 'owner').length ?? 0
 	function onRoleChange(member: Member, next: Role) {
 		if (!member.user_id || next === member.role) return
 		if (member.user_id === myId) {
@@ -179,6 +229,9 @@ function Members() {
 									<TableHead>Nombre</TableHead>
 									<TableHead>Correo</TableHead>
 									<TableHead>Rol</TableHead>
+									<TableHead>
+										<span className="sr-only">Acciones</span>
+									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -218,6 +271,22 @@ function Members() {
 												<Badge variant="secondary">{ROLE_LABELS[m.role]}</Badge>
 											)}
 										</TableCell>
+										<TableCell data-actions className="text-right">
+											{!managedBySello &&
+											workspace.isSuccess &&
+											m.user_id &&
+											!(m.role === 'owner' && owners === 1) &&
+											canRemove(role, m.role, m.user_id === myId) ? (
+												<Button
+													variant="ghost"
+													size="sm"
+													disabled={remove.isPending}
+													onClick={() => setRemoving(m)}
+												>
+													{m.user_id === myId ? 'Salir del espacio' : 'Quitar'}
+												</Button>
+											) : null}
+										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
@@ -230,6 +299,8 @@ function Members() {
 				<Pending
 					invitations={invitations}
 					onRevoke={(invitation) => setRevoking(invitation)}
+					onResend={(invitation) => resend.mutate(invitation)}
+					resending={resend.isPending ? (resend.variables?.id ?? null) : null}
 				/>
 			) : null}
 
@@ -244,7 +315,7 @@ function Members() {
 							queryKey: ['invitations', workspaceId],
 						})
 						setInviting(false)
-						setInvited(result)
+						setInvited({ ...result, resent: false })
 					}}
 				/>
 			) : null}
@@ -257,6 +328,23 @@ function Members() {
 				confirm="Revocar la invitación"
 				pending={revoke.isPending}
 				onConfirm={() => revoking && revoke.mutate(revoking)}
+			/>
+			<Confirm
+				open={removing !== null}
+				onOpenChange={(open) => !open && setRemoving(null)}
+				title={
+					removing?.user_id === myId
+						? '¿Salir del espacio?'
+						: `¿Quitar a ${memberName(removing)}?`
+				}
+				description={
+					removing?.user_id === myId
+						? 'Dejará de tener acceso al espacio y a sus organizaciones. Para volver, alguien que lo administre tendrá que invitarle de nuevo.'
+						: 'Dejará de tener acceso al espacio y a sus organizaciones. Las claves que creó y lo que firmó siguen en el espacio. Para que vuelva, habrá que invitarle de nuevo.'
+				}
+				confirm={removing?.user_id === myId ? 'Salir del espacio' : 'Quitar'}
+				pending={remove.isPending}
+				onConfirm={() => removing && remove.mutate(removing)}
 			/>
 			<Confirm
 				open={demotingSelf !== null}
@@ -279,13 +367,26 @@ function Members() {
 	)
 }
 
+/** What the dialog after inviting shows; `resent` when it was sent again. */
+type Sent = Extract<InviteResult, { ok: true }> & { resent: boolean }
+
+/** How a member is named: their name, their e-mail or their id. */
+function memberName(m: Member | null): string {
+	return m?.name || m?.email || m?.user_id || ''
+}
+
 /** The invitations nobody accepted yet, expired ones included. */
 function Pending({
 	invitations,
 	onRevoke,
+	onResend,
+	resending,
 }: {
 	invitations: UseQueryResult<Invitation[]>
 	onRevoke: (invitation: Invitation) => void
+	onResend: (invitation: Invitation) => void
+	/** The one being sent again, if any. */
+	resending: string | null
 }) {
 	if (invitations.isPending) return <Skeleton className="h-24" />
 	if (invitations.error)
@@ -301,7 +402,8 @@ function Pending({
 				<CardTitle>Invitaciones pendientes</CardTitle>
 				<CardDescription>
 					Cada una vale 7 días y se acepta una sola vez, con la cuenta del
-					correo al que se envió.
+					correo al que se envió. Reenviarla le da 7 días más y un enlace nuevo;
+					el anterior deja de funcionar.
 				</CardDescription>
 			</CardHeader>
 			<TableCards>
@@ -344,13 +446,23 @@ function Pending({
 									)}
 								</TableCell>
 								<TableCell data-actions className="text-right">
-									<Button
-										variant="ghost"
-										size="sm"
-										onClick={() => onRevoke(invitation)}
-									>
-										Revocar
-									</Button>
+									<div className="flex justify-end gap-1">
+										<Button
+											variant="ghost"
+											size="sm"
+											disabled={resending !== null}
+											onClick={() => onResend(invitation)}
+										>
+											{resending === invitation.id ? 'Reenviando…' : 'Reenviar'}
+										</Button>
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={() => onRevoke(invitation)}
+										>
+											Revocar
+										</Button>
+									</div>
 								</TableCell>
 							</TableRow>
 						))}
@@ -476,7 +588,7 @@ function Invited({
 	result: current,
 	onClose,
 }: {
-	result: Extract<InviteResult, { ok: true }> | null
+	result: Sent | null
 	onClose: () => void
 }) {
 	// The last one stays while the dialog closes, so it doesn't go blank.
@@ -488,12 +600,19 @@ function Invited({
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>
-						{result?.emailed ? 'Invitación enviada' : 'Invitación creada'}
+						{result?.emailed
+							? result.resent
+								? 'Invitación reenviada'
+								: 'Invitación enviada'
+							: result?.resent
+								? 'Invitación renovada'
+								: 'Invitación creada'}
 					</DialogTitle>
 					<DialogDescription>
 						{result?.emailed
 							? `Le enviamos el enlace a ${result.invitation.email}. También puede copiarlo y enviarlo usted.`
 							: `Para ${result?.invitation.email ?? ''}.`}
+						{result?.resent ? ' El enlace anterior ya no funciona.' : ''}
 					</DialogDescription>
 				</DialogHeader>
 				{result && !result.emailed ? (

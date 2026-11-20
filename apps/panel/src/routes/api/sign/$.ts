@@ -46,7 +46,12 @@ async function forward(request: Request): Promise<Response> {
 		)
 	}
 	const out = new Headers()
-	for (const name of ['content-type', 'location', 'retry-after']) {
+	for (const name of [
+		'content-type',
+		'content-disposition',
+		'location',
+		'retry-after',
+	]) {
 		const value = upstream.headers.get(name)
 		if (value) out.set(name, value)
 	}

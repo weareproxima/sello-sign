@@ -291,3 +291,54 @@ func (s *Store) ChangeRole(ctx context.Context, workspaceID, userID string, to, 
 	m.Role = model.Role(role)
 	return m, notFound(err)
 }
+
+// RenewInvitation gives one of a space's open invitations, expired or not,
+// a new token (hash) and InvitationLifetime from now, as someone with role
+// actor (model.CanInvite for its role): the old link stops working. It's
+// the same invitation, with the same id, address and role; the checks are
+// those of creating one.
+func (s *Store) RenewInvitation(ctx context.Context, workspaceID, id string, hash []byte, actor model.Role) (Invitation, error) {
+	if !ids.Valid(id) {
+		return Invitation{}, ErrNotFound
+	}
+	now := s.now()
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		managed, maxMembers, err := lockWorkspace(ctx, tx, workspaceID)
+		if err != nil {
+			return err
+		}
+		if managed {
+			return ErrMembersManaged
+		}
+		var email, role string
+		if err := tx.QueryRow(ctx, `SELECT email, role FROM invitations
+			WHERE workspace_id = $1 AND id = $2 AND accepted_at IS NULL AND revoked_at IS NULL FOR UPDATE`,
+			workspaceID, id).Scan(&email, &role); err != nil {
+			return notFound(err)
+		}
+		if !model.CanInvite(actor, model.Role(role)) {
+			return ErrRoleForbidden
+		}
+		var member bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM workspace_members m JOIN users u ON u.id = m.user_id
+			WHERE m.workspace_id = $1 AND lower(u.email) = $2)`, workspaceID, email).Scan(&member); err != nil {
+			return err
+		}
+		if member {
+			return ErrAlreadyMember
+		}
+		if isFull, err := full(ctx, tx, workspaceID, maxMembers); err != nil || isFull {
+			if err == nil {
+				err = ErrWorkspaceFull
+			}
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE invitations SET hash = $2, expires_at = $3 WHERE id = $1`,
+			id, hash, now.Add(InvitationLifetime))
+		return err
+	})
+	if err != nil {
+		return Invitation{}, err
+	}
+	return scanInvitation(s.pool.QueryRow(ctx, `SELECT `+invitationColumns+invitationFrom+` WHERE i.id = $1`, id))
+}

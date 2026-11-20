@@ -115,3 +115,25 @@ func TestEmail(t *testing.T) {
 		}
 	}
 }
+
+func TestCanRemove(t *testing.T) {
+	cases := []struct {
+		actor, target Role
+		self, want    bool
+	}{
+		{Member, Member, true, true},
+		{Owner, Owner, true, true},
+		{"", Member, true, false},
+		{Member, Member, false, false},
+		{Admin, Member, false, true},
+		{Admin, Admin, false, true},
+		{Admin, Owner, false, false},
+		{Owner, Owner, false, true},
+		{Owner, Admin, false, true},
+	}
+	for _, c := range cases {
+		if got := CanRemove(c.actor, c.target, c.self); got != c.want {
+			t.Errorf("CanRemove(%s, %s, self %v) = %v", c.actor, c.target, c.self, got)
+		}
+	}
+}

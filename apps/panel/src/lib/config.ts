@@ -5,6 +5,8 @@
  * Server only: it sees the OIDC client secret and the auth secret.
  */
 
+import { accountDeletable } from './account-deletion'
+
 /** An external OpenID Connect provider to sign in with. */
 export type OidcConfig = {
 	/** The provider's id in better-auth and in `account.provider_id`. */
@@ -92,6 +94,9 @@ export type PublicConfig = {
 	/** Sello's account center (its issuer), only in the cloud with Sello's
 	 * account: where a plan chosen on Sello's site is bought (`lib/plan.ts`). */
 	accountCenter: string | null
+	/** Whether a person may delete their account here: self-hosted, and not
+	 * with `OIDC_ONLY` (`lib/account-deletion.ts`). */
+	accountDeletion: boolean
 }
 
 export function publicConfig(config: PanelConfig): PublicConfig {
@@ -105,6 +110,7 @@ export function publicConfig(config: PanelConfig): PublicConfig {
 				}
 			: null,
 		accountCenter: config.cloud && config.oidc ? config.oidc.issuer : null,
+		accountDeletion: accountDeletable(config),
 	}
 }
 

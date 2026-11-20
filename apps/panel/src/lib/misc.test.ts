@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { safeRedirect } from './redirect'
 import { checkDocument } from './documents'
+import { exportFileName } from './download'
+
+describe('exportFileName', () => {
+	it("is the API's name, with the date in UTC", () => {
+		expect(exportFileName('w1', new Date('2026-11-20T23:30:00-06:00'))).toBe(
+			'sello-sign-w1-2026-11-21.json'
+		)
+	})
+})
 
 describe('safeRedirect', () => {
 	it('keeps paths of the panel', () => {

@@ -191,6 +191,30 @@ export type SignatureEntry = {
 
 export type Page<T> = { items: T[]; next_cursor: string | null }
 
+/** `POST /verifications`: the document comes back as text. */
+export type VerificationResult = {
+	valid: boolean
+	document: string | null
+	document_id: string
+	document_type: string
+}
+
+/** What deleting the account would do to one of the person's spaces. */
+export type AccountOutcome = 'leave' | 'delete' | 'transfer' | 'delegated'
+
+export type AccountDeletion = {
+	/** Whether `DELETE /me` would delete it now. */
+	allowed: boolean
+	workspaces: {
+		id: string
+		name: string
+		role: Role
+		members: number
+		organizations: number
+		outcome: AccountOutcome
+	}[]
+}
+
 export type SignResult = {
 	signature: string
 	document_id: string | null
@@ -277,6 +301,8 @@ type RequestOptions = {
 	/** Sent as is, with this content type, instead of JSON. */
 	raw?: { body: string; contentType: string }
 	headers?: Record<string, string>
+	/** The body as a file (an export), instead of JSON. */
+	blob?: boolean
 }
 
 export function createApi(transport: Transport) {
@@ -327,6 +353,7 @@ export function createApi(transport: Transport) {
 			throw new ApiError(response.status, problem)
 		}
 		if (response.status === 204) return undefined as T
+		if (options.blob) return (await response.blob()) as T
 		const text = await response.text()
 		return (text ? JSON.parse(text) : undefined) as T
 	}
@@ -374,6 +401,26 @@ export function createApi(transport: Transport) {
 				`${w(id)}/invitations/${encodeURIComponent(invitationId)}`,
 				{ method: 'DELETE' }
 			),
+		/** A new token and 7 more days, answered once; the panel's server
+		 * sends the e-mail again (`server/invitations.ts`). */
+		renewInvitation: (id: string, invitationId: string) =>
+			request<CreatedInvitation>(
+				`${w(id)}/invitations/${encodeURIComponent(invitationId)}/renewals`,
+				{ method: 'POST' }
+			),
+		/** Takes someone out of the space, or, with one's own id, leaves it. */
+		removeMember: (id: string, userId: string) =>
+			request<void>(`${w(id)}/members/${encodeURIComponent(userId)}`, {
+				method: 'DELETE',
+			}),
+		/** Everything of the space, as the JSON file the API makes. */
+		exportWorkspace: (id: string) =>
+			request<Blob>(`${w(id)}/export`, { blob: true }),
+		/** What deleting the account would do (self-hosted). */
+		accountDeletion: () => request<AccountDeletion>('/me/account-deletion'),
+		/** Deletes what the API keeps of the person (self-hosted), before the
+		 * panel deletes the account (`server/account.ts`). */
+		deleteMe: () => request<void>('/me', { method: 'DELETE' }),
 		lookupInvitation: (token: string) =>
 			request<InvitationLookup>('/invitation-lookups', {
 				method: 'POST',
@@ -480,6 +527,19 @@ export function createApi(transport: Transport) {
 				method: 'POST',
 				query: { environment },
 				raw: { body: document, contentType },
+			}),
+
+		/** Verifies against the organization's active certificate in an
+		 * environment; nothing is kept. */
+		verify: (
+			organization: string,
+			environment: Environment,
+			signature: string
+		) =>
+			request<VerificationResult>('/verifications', {
+				method: 'POST',
+				headers: { 'x-organization-id': organization },
+				body: { signature, environment },
 			}),
 
 		claimableOrganizations: (workspace: string) =>
@@ -602,6 +662,12 @@ const PROBLEMS: Record<string, string> = {
 	'members-managed-by-sello':
 		'Los miembros de este espacio se invitan y cambian de rol en su cuenta de Sello.',
 	'member-not-found': 'Esa persona ya no es miembro del espacio.',
+	'account-has-workspaces':
+		'Antes de borrar la cuenta, resuelva los espacios que lo impiden.',
+	'not-self-hosted':
+		'En la nube de Sello Sign, la cuenta se borra escribiendo a Sello.',
+	'organization-ambiguous':
+		'Ese NIT nombra más de una organización. Elija la organización por su nombre.',
 	'already-member': 'Esa persona ya es miembro del espacio.',
 	'last-owner':
 		'El espacio se quedaría sin propietario. Haga propietario a otra persona antes.',

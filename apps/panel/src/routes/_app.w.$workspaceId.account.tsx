@@ -1,7 +1,15 @@
 import * as React from 'react'
-import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ExternalLinkIcon, MonitorSmartphoneIcon } from 'lucide-react'
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '#/components/ui/dialog'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
@@ -15,11 +23,18 @@ import { Input } from '#/components/ui/input'
 import { Skeleton } from '#/components/ui/skeleton'
 import { Confirm } from '#/components/confirm'
 import { FormError, FormField, Page, PageHeader } from '#/components/page'
+import {
+	deleteAccountMessage,
+	type DeleteAccountResult,
+} from '#/lib/account-deletion'
+import { api, clearToken, errorMessage, type AccountDeletion } from '#/lib/api'
 import { authClient } from '#/lib/auth-client'
 import { buttonVariants } from '#/lib/button-variants'
 import { formatDateTime } from '#/lib/format'
 import { notify } from '#/lib/notify'
+import { TEXT_LINK } from '#/lib/recipes'
 import { accountCenterPage, describeUserAgent } from '#/lib/user-agent'
+import { deleteAccount } from '#/server/account'
 
 /**
  * The person's account: their name, their password and their open sessions,
@@ -76,6 +91,7 @@ function Account() {
 				<Password provider={config.oidc?.name ?? null} />
 			)}
 			<Sessions />
+			{config.accountDeletion ? <DeleteAccount /> : null}
 		</Page>
 	)
 }
@@ -439,5 +455,256 @@ function Sessions() {
 				onConfirm={() => revokeOthers.mutate()}
 			/>
 		</Card>
+	)
+}
+
+type AccountSpace = AccountDeletion['workspaces'][number]
+
+/**
+ * Deleting the account (self-hosted only: `config.accountDeletion`). Before
+ * asking, it shows what happens to each space (`GET /me/account-deletion`):
+ * the only owner of a space with others has to make someone else owner
+ * first, and the spaces where the person is alone go with the account.
+ */
+function DeleteAccount() {
+	const [open, setOpen] = React.useState(false)
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>Borrar la cuenta</CardTitle>
+				<CardDescription>
+					Borra su cuenta de Sello Sign y le saca de todos sus espacios. Los
+					espacios donde es el único miembro se borran con ella, con sus
+					organizaciones, sus certificados, sus claves de API y su registro de
+					firmas.
+				</CardDescription>
+			</CardHeader>
+			<Button
+				variant="destructive"
+				className="w-fit"
+				onClick={() => setOpen(true)}
+			>
+				Borrar la cuenta
+			</Button>
+			<DeleteAccountDialog open={open} onOpenChange={setOpen} />
+		</Card>
+	)
+}
+
+function DeleteAccountDialog({
+	open,
+	onOpenChange,
+}: {
+	open: boolean
+	onOpenChange: (open: boolean) => void
+}) {
+	const preview = useQuery({
+		queryKey: ['account-deletion'],
+		queryFn: () => api.accountDeletion(),
+		enabled: open,
+		staleTime: 0,
+	})
+	const accounts = useQuery({
+		queryKey: ['auth-accounts'],
+		queryFn: async () => {
+			const { data, error } = await authClient.listAccounts()
+			if (error) throw error
+			return data
+		},
+		enabled: open,
+	})
+	const hasPassword = accounts.data?.some((a) => a.providerId === 'credential')
+	const [password, setPassword] = React.useState('')
+	const remove = useMutation({
+		mutationFn: async (): Promise<DeleteAccountResult> =>
+			deleteAccount({ data: { password: hasPassword ? password : null } }),
+		onSuccess: async (result) => {
+			if (!result.ok) {
+				if (result.reason === 'blocked') await preview.refetch()
+				return
+			}
+			clearToken()
+			window.location.assign('/sign-in')
+		},
+	})
+	const failed = remove.data && !remove.data.ok ? remove.data : null
+	const spaces = preview.data?.workspaces ?? []
+	const of = (...outcomes: AccountSpace['outcome'][]) =>
+		spaces.filter((w) => outcomes.includes(w.outcome))
+	const blocking = of('transfer', 'delegated')
+	const deleted = of('delete')
+	const left = of('leave')
+
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(next) => {
+				if (!next) {
+					setPassword('')
+					remove.reset()
+				}
+				onOpenChange(next)
+			}}
+		>
+			<DialogContent>
+				<form
+					className="space-y-6"
+					onSubmit={(e) => {
+						e.preventDefault()
+						remove.mutate()
+					}}
+				>
+					<DialogHeader>
+						<DialogTitle>¿Borrar su cuenta?</DialogTitle>
+						<DialogDescription>
+							{blocking.length > 0
+								? 'Antes de borrarla, resuelva estos espacios.'
+								: 'Esta acción no se puede deshacer.'}
+						</DialogDescription>
+					</DialogHeader>
+					{preview.isPending || accounts.isPending ? (
+						<Skeleton className="h-24" />
+					) : preview.error ? (
+						<FormError
+							message={errorMessage(preview.error, 'revisar sus espacios')}
+						/>
+					) : blocking.length > 0 ? (
+						<ul className="space-y-3 text-ui">
+							{blocking.map((w) => (
+								<li key={w.id}>
+									<span className="font-medium">{w.name}</span>:{' '}
+									{w.outcome === 'transfer' ? (
+										<>
+											es su único propietario y tiene otros miembros. Haga
+											propietario a otra persona, o quite a los demás, en{' '}
+											<Link
+												to="/w/$workspaceId/members"
+												params={{ workspaceId: w.id }}
+												className={TEXT_LINK}
+											>
+												Miembros
+											</Link>
+											.
+										</>
+									) : (
+										<>
+											otros espacios usan sus organizaciones por delegación.
+											Quítelas en{' '}
+											<Link
+												to="/w/$workspaceId/organizations"
+												params={{ workspaceId: w.id }}
+												className={TEXT_LINK}
+											>
+												Organizaciones
+											</Link>
+											.
+										</>
+									)}
+								</li>
+							))}
+						</ul>
+					) : (
+						<div className="space-y-4 text-ui">
+							{deleted.length > 0 ? (
+								<SpaceList
+									title="Se borrarán, con todo lo suyo, los espacios donde es el único miembro:"
+									spaces={deleted}
+									note={
+										<>
+											Si necesita sus datos, expórtelos antes en «General» de
+											cada uno.
+										</>
+									}
+								/>
+							) : null}
+							{left.length > 0 ? (
+								<SpaceList
+									title="Saldrá de estos espacios, que siguen con sus demás miembros:"
+									spaces={left}
+								/>
+							) : null}
+							{spaces.length === 0 ? (
+								<p className="text-muted-foreground">
+									No está en ningún espacio.
+								</p>
+							) : null}
+							<FormError
+								message={
+									failed
+										? deleteAccountMessage(failed)
+										: remove.error
+											? 'No se pudo borrar la cuenta. Vuelva a intentarlo.'
+											: null
+								}
+							/>
+							{hasPassword ? (
+								<FormField label="Contraseña" htmlFor="delete-password">
+									<Input
+										id="delete-password"
+										type="password"
+										required
+										autoComplete="current-password"
+										value={password}
+										onChange={(e) => setPassword(e.target.value)}
+									/>
+								</FormField>
+							) : null}
+						</div>
+					)}
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="secondary"
+							onClick={() => onOpenChange(false)}
+						>
+							Cancelar
+						</Button>
+						{preview.data?.allowed ? (
+							<Button
+								type="submit"
+								variant="destructive"
+								disabled={remove.isPending || (hasPassword && !password)}
+							>
+								{remove.isPending ? 'Borrando…' : 'Borrar la cuenta'}
+							</Button>
+						) : null}
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	)
+}
+
+function SpaceList({
+	title,
+	spaces,
+	note,
+}: {
+	title: string
+	spaces: AccountSpace[]
+	note?: React.ReactNode
+}) {
+	return (
+		<div className="space-y-2">
+			<p>{title}</p>
+			<ul className="list-disc space-y-1 ps-5">
+				{spaces.map((w) => (
+					<li key={w.id}>
+						<span className="font-medium">{w.name}</span>
+						{w.organizations > 0 ? (
+							<span className="text-muted-foreground">
+								{' '}
+								(
+								{w.organizations === 1
+									? '1 organización'
+									: `${w.organizations} organizaciones`}
+								)
+							</span>
+						) : null}
+					</li>
+				))}
+			</ul>
+			{note ? <p className="text-meta text-muted-foreground">{note}</p> : null}
+		</div>
 	)
 }

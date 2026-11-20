@@ -280,3 +280,17 @@ func ValidEmail(s string) bool {
 	dot := strings.LastIndex(domain, ".")
 	return dot > 0 && dot < len(domain)-1
 }
+
+// CanRemove says whether a person with role actor may take a member with
+// role target out of a space: anyone leaves by themselves (self); owners
+// and admins remove others, and only an owner removes an owner. That the
+// space keeps an owner is the store's to check, under a lock.
+func CanRemove(actor, target Role, self bool) bool {
+	if self {
+		return actor != ""
+	}
+	if !actor.Manages() {
+		return false
+	}
+	return target != Owner || actor == Owner
+}

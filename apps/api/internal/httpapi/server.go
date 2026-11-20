@@ -55,6 +55,8 @@ type Deps struct {
 type Server struct {
 	Deps
 	mux *http.ServeMux
+	// mcp is the MCP transport of POST /mcp (mcp.go).
+	mcp http.Handler
 
 	touchMu sync.Mutex
 	touched map[string]time.Time
@@ -72,6 +74,7 @@ func New(d Deps) *Server {
 		d.Limiter = ratelimit.NewMemory()
 	}
 	s := &Server{Deps: d, mux: http.NewServeMux(), touched: map[string]time.Time{}}
+	s.mcp = s.newMCPHandler()
 	s.routes()
 	return s
 }
@@ -82,10 +85,15 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /openapi.yaml", s.openapi)
 
 	m.HandleFunc("POST /signatures", s.authed(s.signWithKey))
-	m.HandleFunc("POST /verifications", s.authed(s.verifyWithKey))
+	m.HandleFunc("POST /verifications", s.authed(s.verify))
+	m.HandleFunc("POST /mcp", s.serveMCP)
+	m.HandleFunc("GET /mcp", mcpOnlyPost)
+	m.HandleFunc("DELETE /mcp", mcpOnlyPost)
 
 	m.HandleFunc("GET /me", s.authed(s.me))
 	m.HandleFunc("GET /me/sello-organizations", s.authed(s.selloOrganizations))
+	m.HandleFunc("GET /me/account-deletion", s.authed(s.accountDeletion))
+	m.HandleFunc("DELETE /me", s.authed(s.deleteAccount))
 	m.HandleFunc("POST /workspaces", s.authed(s.createWorkspace))
 	m.HandleFunc("POST /invitation-lookups", s.authed(s.lookupInvitation))
 	m.HandleFunc("POST /invitation-acceptances", s.authed(s.acceptInvitation))
@@ -93,10 +101,13 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /workspaces/{workspace_id}", s.inWorkspace(s.getWorkspace))
 	m.HandleFunc("PATCH /workspaces/{workspace_id}", s.inWorkspace(s.updateWorkspace))
 	m.HandleFunc("GET /workspaces/{workspace_id}/members", s.inWorkspace(s.listMembers))
+	m.HandleFunc("GET /workspaces/{workspace_id}/export", s.inWorkspace(s.exportWorkspace))
 	m.HandleFunc("PATCH /workspaces/{workspace_id}/members/{user_id}", s.inWorkspace(s.updateMember))
+	m.HandleFunc("DELETE /workspaces/{workspace_id}/members/{user_id}", s.inWorkspace(s.removeMember))
 	m.HandleFunc("GET /workspaces/{workspace_id}/invitations", s.inWorkspace(s.listInvitations))
 	m.HandleFunc("POST /workspaces/{workspace_id}/invitations", s.inWorkspace(s.createInvitation))
 	m.HandleFunc("DELETE /workspaces/{workspace_id}/invitations/{invitation_id}", s.inWorkspace(s.revokeInvitation))
+	m.HandleFunc("POST /workspaces/{workspace_id}/invitations/{invitation_id}/renewals", s.inWorkspace(s.renewInvitation))
 	m.HandleFunc("GET /workspaces/{workspace_id}/usage", s.inWorkspace(s.usage))
 
 	m.HandleFunc("GET /workspaces/{workspace_id}/organizations", s.inWorkspace(s.listOrganizations))

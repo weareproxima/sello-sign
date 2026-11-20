@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"strings"
 	"time"
 
 	"proxima.la/sello/sign/internal/auth"
@@ -173,24 +174,57 @@ func (s *Server) signWithKey(w http.ResponseWriter, r *http.Request, c *call) {
 	s.signAndRecord(w, r, org, k.WorkspaceID, k.Environment, k, "")
 }
 
-// verifyWithKey handles POST /verifications.
-func (s *Server) verifyWithKey(w http.ResponseWriter, r *http.Request, c *call) {
-	org, ok := s.keyOrganization(w, r, c)
-	if !ok {
-		return
-	}
+// verify handles POST /verifications: with a key that signs, against its
+// environment; with the panel's token, any member of a space that owns the
+// organization or has it delegated (with sign or certificates:read),
+// against the environment the body names. Nothing is kept: neither the
+// document nor the result.
+func (s *Server) verify(w http.ResponseWriter, r *http.Request, c *call) {
 	var body struct {
-		Signature string `json:"signature"`
+		Signature   string  `json:"signature"`
+		Environment *string `json:"environment"`
 	}
-	if p := decode(w, r, &body); p != nil {
-		writeProblem(w, p)
-		return
+	var (
+		org store.Organization
+		env model.Environment
+	)
+	if k := c.key(); k != nil {
+		var ok bool
+		if org, ok = s.keyOrganization(w, r, c); !ok {
+			return
+		}
+		if p := decode(w, r, &body); p != nil {
+			writeProblem(w, p)
+			return
+		}
+		env = k.Environment
+		if body.Environment != nil && *body.Environment != string(env) {
+			writeProblem(w, invalid("«environment» es el de la clave; con esta, «"+string(env)+"»."))
+			return
+		}
+	} else {
+		var ok bool
+		if org, ok = s.personOrganization(w, r, c); !ok {
+			return
+		}
+		if p := decode(w, r, &body); p != nil {
+			writeProblem(w, p)
+			return
+		}
+		if body.Environment == nil {
+			writeProblem(w, invalid("Falta «environment»: test o prod."))
+			return
+		}
+		if env, ok = model.ParseEnvironment(*body.Environment); !ok {
+			writeProblem(w, invalid("«environment» debe ser test o prod."))
+			return
+		}
 	}
 	if body.Signature == "" {
 		writeProblem(w, invalid("Falta «signature»."))
 		return
 	}
-	v, err := s.Signer.Verify(r.Context(), org, c.key().Environment, []byte(body.Signature))
+	v, err := s.Signer.Verify(r.Context(), org, env, []byte(body.Signature))
 	if err != nil {
 		if p := signingProblem(err); p != nil {
 			writeProblem(w, p)
@@ -205,6 +239,36 @@ func (s *Server) verifyWithKey(w http.ResponseWriter, r *http.Request, c *call) 
 		out.Document = &doc
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// personOrganization resolves X-Organization-Id among the organizations a
+// person reaches through their spaces, and checks they may verify with it:
+// the owner's members, and a delegate's if its delegation signs or reads
+// the certificates.
+func (s *Server) personOrganization(w http.ResponseWriter, r *http.Request, c *call) (store.Organization, bool) {
+	u := c.user()
+	ref := strings.TrimSpace(r.Header.Get("X-Organization-Id"))
+	if ref == "" {
+		writeProblem(w, problem(http.StatusBadRequest, "organization-required", "Falta X-Organization-Id: el id de la organización o su NIT."))
+		return store.Organization{}, false
+	}
+	org, _, err := s.Store.ResolveOrganizationForPerson(r.Context(), u.Subject, u.SelloSub, ref)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeProblem(w, errOrgNotFound)
+		return store.Organization{}, false
+	case errors.Is(err, store.ErrAmbiguous):
+		writeProblem(w, problem(http.StatusConflict, "organization-ambiguous", "Ese NIT nombra más de una organización: use su id."))
+		return store.Organization{}, false
+	case err != nil:
+		internalError(w, r, err)
+		return store.Organization{}, false
+	}
+	if !org.Reach.Allows(model.ScopeSign) && !org.Reach.Allows(model.ScopeCertificatesRead) {
+		writeProblem(w, forbidden("La delegación de esta organización no permite verificar con su certificado."))
+		return store.Organization{}, false
+	}
+	return org, true
 }
 
 // signFromPanel handles POST /workspaces/{w}/organizations/{o}/signatures:

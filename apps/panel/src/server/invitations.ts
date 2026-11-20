@@ -8,8 +8,30 @@ import { serverEnv } from '#/lib/env'
 import {
 	inviteAndSend,
 	parseInviteInput,
+	parseResendInput,
+	resendAndSend,
 	type InviteResult,
 } from '#/lib/invitations'
+
+/** The signed-in person and an API client with their token; null without a
+ * session. */
+async function asPerson() {
+	const headers = new Headers(getRequestHeaders() as unknown as HeadersInit)
+	const auth = getAuth()
+	const session = await auth.api.getSession({ headers })
+	if (!session) return null
+	const { token } = await auth.api.getToken({ headers })
+	const config = readConfig(serverEnv())
+	return {
+		session,
+		config,
+		api: createApi({
+			base: config.apiUrl,
+			fetch: (input, init) => fetch(input, init),
+			token: async () => token,
+		}),
+	}
+}
 
 /**
  * Invites someone to a space and sends them the e-mail, from the panel's
@@ -20,21 +42,32 @@ import {
 export const inviteMember = createServerFn({ method: 'POST' })
 	.validator(parseInviteInput)
 	.handler(async ({ data }): Promise<InviteResult> => {
-		const headers = new Headers(getRequestHeaders() as unknown as HeadersInit)
-		const auth = getAuth()
-		const session = await auth.api.getSession({ headers })
-		if (!session) return { ok: false, status: 401, problem: null }
-		const { token } = await auth.api.getToken({ headers })
-		const config = readConfig(serverEnv())
+		const person = await asPerson()
+		if (!person) return { ok: false, status: 401, problem: null }
 		return inviteAndSend({
-			api: createApi({
-				base: config.apiUrl,
-				fetch: (input, init) => fetch(input, init),
-				token: async () => token,
-			}),
+			api: person.api,
 			send: (message) => sendEmail(message),
-			panelUrl: config.panelUrl,
-			inviterName: session.user.name || session.user.email,
+			panelUrl: person.config.panelUrl,
+			inviterName: person.session.user.name || person.session.user.email,
+			...data,
+		})
+	})
+
+/**
+ * Sends an invitation again, from the panel's server, as `inviteMember`: the
+ * API renews it (a new token, 7 more days) and the e-mail carries the new
+ * link.
+ */
+export const resendInvitation = createServerFn({ method: 'POST' })
+	.validator(parseResendInput)
+	.handler(async ({ data }): Promise<InviteResult> => {
+		const person = await asPerson()
+		if (!person) return { ok: false, status: 401, problem: null }
+		return resendAndSend({
+			api: person.api,
+			send: (message) => sendEmail(message),
+			panelUrl: person.config.panelUrl,
+			inviterName: person.session.user.name || person.session.user.email,
 			...data,
 		})
 	})

@@ -57,27 +57,27 @@ export type InviteResult =
 	| { ok: true; invitation: Invitation; link: string; emailed: boolean }
 	| { ok: false; status: number; problem: Problem | null }
 
-/**
- * Creates the invitation with the inviter's token and sends its e-mail. The
- * invitation stands even if the e-mail fails (`emailed: false`): the page
- * offers the link instead.
- */
-export async function inviteAndSend(deps: {
-	api: Pick<Api, 'createInvitation' | 'workspace'>
+type SendDeps = {
+	api: Pick<Api, 'workspace'>
 	send: (message: EmailMessage) => Promise<void>
 	panelUrl: string
 	inviterName: string
 	workspaceId: string
-	email: string
-	role: Role
-}): Promise<InviteResult> {
+}
+
+/**
+ * Calls the API for an invitation with its token (creating it or renewing
+ * it) and sends its e-mail. The invitation stands even if the e-mail fails
+ * (`emailed: false`): the page offers the link instead.
+ */
+async function withEmail(
+	deps: SendDeps,
+	call: () => Promise<CreatedInvitation>
+): Promise<InviteResult> {
 	let created: CreatedInvitation
 	let workspaceName: string
 	try {
-		created = await deps.api.createInvitation(deps.workspaceId, {
-			email: deps.email,
-			role: deps.role,
-		})
+		created = await call()
 		workspaceName = (await deps.api.workspace(deps.workspaceId)).name
 	} catch (error) {
 		if (error instanceof ApiError)
@@ -109,6 +109,49 @@ export async function inviteAndSend(deps: {
 		)
 	}
 	return { ok: true, invitation, link, emailed }
+}
+
+/** Creates the invitation with the inviter's token and sends its e-mail. */
+export async function inviteAndSend(
+	deps: SendDeps & {
+		api: Pick<Api, 'createInvitation' | 'workspace'>
+		email: string
+		role: Role
+	}
+): Promise<InviteResult> {
+	return withEmail(deps, () =>
+		deps.api.createInvitation(deps.workspaceId, {
+			email: deps.email,
+			role: deps.role,
+		})
+	)
+}
+
+/**
+ * Sends an invitation again: the API can't give its old token back (it keeps
+ * only its hash), so it renews it (a new token, 7 more days, the old link no
+ * longer works) and the e-mail goes with the new link.
+ */
+export async function resendAndSend(
+	deps: SendDeps & {
+		api: Pick<Api, 'renewInvitation' | 'workspace'>
+		invitationId: string
+	}
+): Promise<InviteResult> {
+	return withEmail(deps, () =>
+		deps.api.renewInvitation(deps.workspaceId, deps.invitationId)
+	)
+}
+
+/** Parses the page's input to `resendInvitation`; throws on anything else. */
+export function parseResendInput(data: unknown): {
+	workspaceId: string
+	invitationId: string
+} {
+	const d = (data ?? {}) as Record<string, unknown>
+	if (typeof d.workspaceId !== 'string' || typeof d.invitationId !== 'string')
+		throw new Error('invalid input')
+	return { workspaceId: d.workspaceId, invitationId: d.invitationId }
 }
 
 /** Parses the page's input to `inviteMember`; throws on anything else. */

@@ -56,9 +56,20 @@ firmar de prueba desde el panel.
   `application/xml` en los demás países). Firma con el certificado activo del
   ambiente de la clave. Respuesta `200`:
   `{ "signature": "…", "document_id": "…", "document_type": "…" }`.
-- `POST /verifications` (clave con `sign`), con `X-Organization-Id`:
-  `{ "signature": "…" }` → `{ "valid", "document", "document_id", "document_type" }`,
+- `POST /verifications`, con `X-Organization-Id`:
+  `{ "signature": "…", "environment"? }` → `{ "valid", "document", "document_id", "document_type" }`,
   con `document` el documento firmado en texto (el JSON de un JWS o el XML).
+  Verifica con el certificado activo de la organización en el ambiente,
+  también si ya venció (lo que firmó mientras valía sigue valiendo), y no
+  guarda nada: ni el documento ni el resultado, ni cuenta en el uso.
+  - Con una clave con `sign`: entre las organizaciones que alcanza, en el
+    ambiente de la clave (`environment`, si va, es ese).
+  - Con el token del panel: cualquier miembro (de cualquier rol) de un
+    espacio dueño de la organización o al que se le delegó con `sign` o
+    `certificates:read`, en el ambiente que dice `environment`, obligatorio.
+    `X-Organization-Id` se busca entre las organizaciones de todos los
+    espacios de la persona (un NIT que nombra a más de una,
+    `409 organization-ambiguous`).
 - `POST /workspaces/{w}/organizations/{o}/signatures?environment=test|prod`
   (token del panel): lo mismo, para firmar de prueba desde el panel.
 
@@ -123,6 +134,12 @@ propia) no hay ninguno salvo los que se configuren: los de la consola
 - `PATCH /workspaces/{w}/members/{user_id}` `{ "role" }` (token, `owner` o
   `admin`): cambia el rol de un miembro. Solo un `owner` da o quita el rol
   `owner`, y el espacio nunca se queda sin uno (`409 last-owner`).
+- `DELETE /workspaces/{w}/members/{user_id}` (token): `owner` y `admin`
+  quitan a un miembro (solo un `owner` quita a otro `owner`), y cualquiera
+  sale por sí mismo con su propio `user_id`. El espacio nunca se queda sin
+  propietario (`409 last-owner`, también para el último que quiere salir).
+  Lo del espacio se queda: las claves que creó, las invitaciones que mandó y
+  sus firmas en el registro.
 - **Invitaciones** (token, `owner` o `admin`; solo un `owner` invita a otro
   `owner`):
   - `GET /workspaces/{w}/invitations` → `[{ "id", "email", "role", "status", "invited_by": { "user_id", "email", "name" }, "expires_at", "created_at" }]`:
@@ -136,6 +153,12 @@ propia) no hay ninguno salvo los que se configuren: los de la consola
     `409 workspace-full` si el plan no admite más.
   - `DELETE /workspaces/{w}/invitations/{i}`: la revoca; su enlace deja de
     valer.
+  - `POST /workspaces/{w}/invitations/{i}/renewals`: para reenviarla. La
+    misma invitación (su id, su correo y su rol), vencida o no, con un
+    `"token"` nuevo, que se responde una sola vez, y 7 días desde ahora; el
+    enlace anterior deja de valer. Solo un `owner` renueva la de un `owner`,
+    y valen las comprobaciones de crearla (`already-member`,
+    `workspace-full`). El panel manda el correo otra vez.
   - `POST /invitation-lookups` `{ "token" }` (el token de quien abrió el
     enlace) → `{ "workspace_id", "workspace_name", "email", "role", "status", "invited_by", "expires_at" }`,
     para mostrarla antes de aceptarla.
@@ -147,13 +170,38 @@ propia) no hay ninguno salvo los que se configuren: los de la consola
   - **En la nube,** los miembros de un espacio de una organización del IdP
     (`sello_workspace_id`) son los asientos que empuja billing: se invitan y
     cambian de rol en «Su cuenta › Organización › Miembros y acceso» de Sello,
-    y aquí invitar y cambiar un rol es `409 members-managed-by-sello`. Las
+    y aquí invitar, renovar, cambiar un rol, quitar a alguien o salir es
+    `409 members-managed-by-sello`. Las
     invitaciones son de los espacios sin ella: los de una instalación propia y
     el de la plataforma.
 - `GET /workspaces/{w}/usage?from=AAAA-MM&to=AAAA-MM` →
   `{ "plan", "limits", "items": [{ "month", "environment", "signatures" }] }`:
   lo que firmó el espacio, por mes y ambiente (por defecto, los últimos doce
   meses), y los límites del plan.
+- `GET /workspaces/{w}/export` (token, `owner` o `admin`): todo lo del
+  espacio en un JSON hecho al momento, que no se guarda en ningún lado
+  (`Content-Disposition: attachment`): `{ "format": "sello-sign-export/1", "exported_at", "workspace", "organizations", "api_keys", "members", "invitations", "usage", "signatures" }`.
+  Las organizaciones, propias y delegadas, cada una con todos sus
+  certificados (solo sus datos públicos, nunca el material ni el PIN; `null`
+  si la delegación no deja leerlos) y las delegaciones que dio (`null` en una
+  delegada); las claves, también las revocadas (`revoked_at`, `created_by`),
+  nunca su hash; las invitaciones abiertas, nunca su token; y el registro de
+  firmas tal como está, dentro de su retención, al final y escrito a medida
+  que se lee (si falla a medias, la descarga se corta).
+- **Borrar la cuenta** (token, solo en una instalación propia; en la nube,
+  `404 not-self-hosted`, porque se pide por correo):
+  - `GET /me/account-deletion` → `{ "allowed", "workspaces": [{ "id", "name", "role", "members", "organizations", "outcome" }] }`:
+    qué le pasaría a cada espacio de la persona. `leave`, sale; `delete`, es
+    su único miembro y se borra con todo lo suyo; `transfer`, es su único
+    propietario y hay otros miembros (antes, otro tiene que ser
+    propietario); `delegated`, es su único miembro pero otros espacios usan
+    sus organizaciones por delegación (antes, hay que quitarlas). Los dos
+    últimos impiden borrarla.
+  - `DELETE /me`: lo hace, en una transacción, y lo llama el panel antes de
+    borrar la cuenta: sale de sus espacios, los de `delete` se borran, y se
+    borra lo que el API sabía de ella (`users`). Lo que hizo en los espacios
+    que quedan se queda. Si alguno lo impide, `409 account-has-workspaces` y
+    no cambia nada.
 
 ## Organizaciones (los contribuyentes)
 
@@ -226,6 +274,83 @@ propia) no hay ninguno salvo los que se configuren: los de la consola
   es `null` si la organización se borró. Cada entrada dura lo que la retención
   del espacio que firmó («Límites»).
 - `GET /workspaces/{w}/signatures/{s}`.
+
+## Servidor MCP
+
+`POST /mcp` es el API como servidor [Model Context Protocol](https://modelcontextprotocol.io),
+para que un agente (Claude Code, Cursor, VS Code…) firme, verifique y
+consulte con herramientas en lugar de armar las llamadas HTTP. Como el de
+`../sign-old`, con las rutas de este contrato.
+
+- **Transporte:** Streamable HTTP sin estado, con el SDK oficial de Go
+  (`github.com/modelcontextprotocol/go-sdk`, el mismo que el MCP de Sello
+  Chat): cada `POST` lleva un mensaje JSON-RPC 2.0 y se responde con JSON.
+  Sin sesión ni flujo SSE: `GET` y `DELETE` son `405`. Las versiones del
+  protocolo, las del SDK (de `2024-11-05` a `2026-07-28`). Una petición de
+  un navegador desde otro origen es `403`.
+- **Credencial:** una clave de API, en `X-API-Key` o como
+  `Authorization: Bearer sign_…` (para los clientes que solo mandan esa); el
+  token del panel no vale (`401 unauthorized`). Una clave revocada deja de
+  valer al momento, también aquí.
+- **Una sola implementación:** cada herramienta llama en el mismo proceso a
+  su ruta con la misma clave, así que los permisos, el alcance de la
+  organización (también la de una clave de una sola organización y la
+  delegada), los límites por minuto y del mes, los errores y el registro de
+  firmas son los de la ruta. Un error de la ruta llega como resultado de la
+  herramienta (`isError`), con su problema en JSON (`type`, `status`,
+  `detail` y, en un límite, `applies_to`, `limit`, `environment`,
+  `resets_at`) y, si la ruta dio `Retry-After`, `retry_after` en segundos;
+  unos argumentos que no sirven, con `type: invalid-arguments`.
+- **Herramientas según los scopes:** `tools/list` solo da las que la clave
+  puede usar, y las instrucciones del servidor dicen su ambiente, sus scopes
+  y, si la tiene, su organización. Las que borran o dejan de firmar llevan
+  `destructiveHint: true`, y los clientes piden confirmación antes de
+  usarlas; las demás de escritura, `destructiveHint: false`. Todas llevan
+  `openWorldHint: false`.
+
+| Herramienta              | Scope                 | Ruta                                         | Destructiva |
+| ------------------------ | --------------------- | -------------------------------------------- | ----------- |
+| `sign_document`          | `sign`                | `POST /signatures`                           |             |
+| `verify_signature`       | `sign`                | `POST /verifications`                        |             |
+| `get_workspace`          | cualquiera            | `GET /workspaces/self`                       |             |
+| `list_organizations`     | `organizations:read`  | `GET /workspaces/self/organizations`         |             |
+| `get_organization`       | `organizations:read`  | `GET …/organizations/{o}`                    |             |
+| `create_organization`    | `organizations:write` | `POST /workspaces/self/organizations`        |             |
+| `update_organization`    | `organizations:write` | `PATCH …/organizations/{o}`                  |             |
+| `delete_organization`    | `organizations:write` | `DELETE …/organizations/{o}`                 | sí          |
+| `list_certificates`      | `certificates:read`   | `GET …/organizations/{o}/certificates`       |             |
+| `activate_certificate`   | `certificates:write`  | `PATCH …/certificates/{c}` (`active: true`)  |             |
+| `deactivate_certificate` | `certificates:write`  | `PATCH …/certificates/{c}` (`active: false`) | sí          |
+| `delete_certificate`     | `certificates:write`  | `DELETE …/certificates/{c}`                  | sí          |
+| `list_delegations`       | `delegations:read`    | `GET …/organizations/{o}/delegations`        |             |
+| `create_delegation`      | `delegations:write`   | `POST …/organizations/{o}/delegations`       |             |
+| `delete_delegation`      | `delegations:write`   | `DELETE …/delegations/{d}`                   | sí          |
+| `list_api_keys`          | `keys:read`           | `GET /workspaces/self/api-keys`              |             |
+| `revoke_api_key`         | `keys:write`          | `DELETE /workspaces/self/api-keys/{k}`       | sí          |
+| `list_signatures`        | `logs:read`           | `GET /workspaces/self/signatures`            |             |
+| `get_signature`          | `logs:read`           | `GET /workspaces/self/signatures/{s}`        |             |
+| `get_usage`              | `logs:read`           | `GET /workspaces/self/usage`                 |             |
+
+`sign_document` recibe la organización (su id o su NIT, como
+`X-Organization-Id`) y el documento: un objeto JSON, que llega a la ruta tal
+cual, byte a byte y con sus claves en su orden (el JWS de El Salvador las
+firma así), o un texto, que es XML si empieza por `<` y JSON si no.
+`deactivate_certificate` es destructiva porque, si era el activo, la
+organización deja de firmar en ese ambiente hasta que se active otro.
+
+**Fuera a propósito**, como en `../sign-old`: subir un certificado (pasaría la
+llave privada y su contraseña por el contexto del modelo) y crear una clave
+(le daría un secreto nuevo que podría filtrar). Tampoco están las rutas que
+solo acepta el token del panel (miembros, invitaciones, cambiar el espacio,
+traer organizaciones) ni la firma de prueba del panel.
+
+Para conectarlo, con una clave de `test` y los scopes mínimos que necesite
+el agente:
+
+```sh
+claude mcp add --transport http sello-sign https://api.sign.sello.tax/mcp \
+  --header "X-API-Key: sign_test_…"
+```
 
 ## Billing (solo en la nube)
 

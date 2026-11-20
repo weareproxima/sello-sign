@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { createFileRoute } from '@tanstack/react-router'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
@@ -14,28 +15,44 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#/components/ui/card'
+import { NativeSelect, NativeSelectOption } from '#/components/ui/native-select'
+import { Skeleton } from '#/components/ui/skeleton'
 import { Textarea } from '#/components/ui/textarea'
 import { Empty } from '#/components/empty'
+import { EnvironmentPicker } from '#/components/environment-picker'
 import {
 	CountryCode,
+	FormError,
 	FormField,
 	Mono,
 	Page,
 	PageHeader,
 } from '#/components/page'
+import {
+	api,
+	errorMessage,
+	type Environment,
+	type Organization,
+} from '#/lib/api'
 import { countryName } from '#/lib/countries'
+import { ENVIRONMENT_LABELS, formatDate } from '#/lib/format'
+import { SEGMENT, SEGMENTED } from '#/lib/recipes'
 import {
 	verifySignatureClient,
+	type ClientVerifyCountry,
 	type ClientVerifyResult,
 } from '#/lib/verify-client'
 import { cn } from '#/lib/utils'
+import { useWorkspace } from '#/lib/workspace'
 
 /**
- * Verifying a signature, in the browser: the contract's `POST /verifications`
- * takes an API key, not the panel's token, so the panel runs the verifier of
- * Sello's site (`sello.tax/sign/verify`), a byte-for-byte copy of
- * ../sign-old's (`lib/verify-client.ts`). Neither the document nor the
- * certificate leave the browser.
+ * Verifying a signature, two ways. With an organization of the space, by
+ * the API (`POST /verifications` with the panel's token): against its
+ * active certificate in an environment, so a JWS of El Salvador needs no
+ * certificate pasted; the API processes it in memory and keeps nothing. Or,
+ * without sending anything, in the browser, with the verifier of Sello's
+ * site (`sello.tax/sign/verify`), a byte-for-byte copy of ../sign-old's
+ * (`lib/verify-client.ts`).
  */
 export const Route = createFileRoute('/_app/w/$workspaceId/verify')({
 	head: () => ({ meta: [{ title: 'Verificar una firma — Sello Sign' }] }),
@@ -45,55 +62,211 @@ export const Route = createFileRoute('/_app/w/$workspaceId/verify')({
 /** A JWS (El Salvador): three base64url parts. Its key isn't inside. */
 const isJwt = (value: string) => /^[\w-]+\.[\w-]+\.[\w-]+$/.test(value.trim())
 
+type Mode = 'api' | 'browser'
+
+const CLIENT_COUNTRIES: ClientVerifyCountry[] = ['SV', 'DO', 'CR', 'PA', 'GT']
+
+/** The organizations whose certificate the person may verify with: the
+ * space's own, and delegated ones that sign or read certificates. */
+function verifiable(orgs: Organization[]): Organization[] {
+	return orgs.filter(
+		(o) =>
+			o.relation === 'owned' ||
+			o.delegation?.scopes.some(
+				(s) => s === 'sign' || s === 'certificates:read'
+			)
+	)
+}
+
+/** The API's answer as the result the page shows. */
+function fromApi(
+	result: {
+		valid: boolean
+		document: string | null
+		document_id: string
+		document_type: string
+	},
+	signed: string,
+	country: string
+): ClientVerifyResult {
+	let payload: unknown = result.document
+	if (result.document && isJwt(signed)) {
+		try {
+			payload = JSON.parse(result.document)
+		} catch {
+			payload = result.document
+		}
+	}
+	return {
+		valid: result.valid,
+		payload,
+		kind: isJwt(signed) ? 'jwt' : 'xml',
+		country: CLIENT_COUNTRIES.find((c) => c === country),
+		documentId: result.document_id || null,
+		documentType: result.document_type || null,
+	}
+}
+
 function Verify() {
+	const { workspaceId } = useWorkspace()
+	const organizations = useQuery({
+		queryKey: ['organizations', workspaceId],
+		queryFn: () => api.organizations(workspaceId),
+	})
+	const usable = verifiable(organizations.data ?? [])
+	const [chosen, setChosen] = React.useState<Mode | null>(null)
+	// With an organization, the API by default; without one, the browser.
+	const mode: Mode = usable.length === 0 ? 'browser' : (chosen ?? 'api')
+
 	const [signed, setSigned] = React.useState('')
 	const [certificate, setCertificate] = React.useState('')
+	const [organizationId, setOrganizationId] = React.useState('')
+	const [environment, setEnvironment] = React.useState<Environment>('test')
 	const [result, setResult] = React.useState<ClientVerifyResult | null>(null)
-	const [verifying, setVerifying] = React.useState(false)
 	const file = React.useRef<HTMLInputElement>(null)
+	const organization =
+		usable.find((o) => o.id === organizationId) ?? usable[0] ?? null
 	const jwt = isJwt(signed)
-	const needsCertificate = jwt && !certificate.trim()
+	const needsCertificate = mode === 'browser' && jwt && !certificate.trim()
 
-	async function verify() {
-		setVerifying(true)
-		setResult(null)
-		try {
-			setResult(
-				await verifySignatureClient(
+	const verify = useMutation({
+		mutationFn: async (): Promise<ClientVerifyResult> => {
+			if (mode === 'api' && organization) {
+				const answer = await api.verify(
+					organization.id,
+					environment,
+					signed.trim()
+				)
+				return fromApi(answer, signed, organization.country)
+			}
+			try {
+				return await verifySignatureClient(
 					signed.trim(),
 					certificate.trim() || undefined
 				)
-			)
-		} catch (error) {
-			setResult({
-				valid: false,
-				payload: null,
-				error: error instanceof Error ? error.message : String(error),
-			})
-		} finally {
-			setVerifying(false)
-		}
+			} catch (error) {
+				return {
+					valid: false,
+					payload: null,
+					error: error instanceof Error ? error.message : String(error),
+				}
+			}
+		},
+		onMutate: () => setResult(null),
+		onSuccess: setResult,
+	})
+	const clear = () => {
+		setResult(null)
+		verify.reset()
 	}
+	const active = organization?.certificates[environment] ?? null
 
 	return (
 		<Page>
 			<PageHeader
 				title="Verificar una firma"
-				description="Pegue el JWT o el XML firmado. Se verifica en su navegador: ni el documento ni el certificado salen de él."
+				description={
+					mode === 'api'
+						? 'Pegue el JWT o el XML firmado. Sello Sign lo verifica con el certificado de la organización, en memoria y sin guardarlo.'
+						: 'Pegue el JWT o el XML firmado. Se verifica en su navegador: ni el documento ni el certificado salen de él.'
+				}
 			/>
 			<div className="grid items-start gap-6 lg:grid-cols-2">
 				<Card>
+					{organizations.isPending ? (
+						<Skeleton className="h-9 w-72" />
+					) : usable.length > 0 ? (
+						<div
+							className={cn(SEGMENTED, 'w-fit max-w-full')}
+							role="radiogroup"
+							aria-label="Cómo verificar"
+						>
+							{(
+								[
+									['api', 'En Sello Sign'],
+									['browser', 'En su navegador'],
+								] as const
+							).map(([value, label]) => (
+								<button
+									key={value}
+									type="button"
+									role="radio"
+									aria-checked={mode === value}
+									className={cn(SEGMENT, 'h-8 px-4 text-ui whitespace-nowrap')}
+									onClick={() => {
+										setChosen(value)
+										clear()
+									}}
+								>
+									{label}
+								</button>
+							))}
+						</div>
+					) : null}
 					<form
 						className="space-y-4"
 						onSubmit={(e) => {
 							e.preventDefault()
-							void verify()
+							verify.mutate()
 						}}
 					>
+						<FormError
+							message={
+								verify.error
+									? errorMessage(verify.error, 'verificar la firma')
+									: null
+							}
+						/>
+						{mode === 'api' && organization ? (
+							<>
+								<FormField
+									label="Organización"
+									htmlFor="organization"
+									help={
+										active
+											? `Se verifica con su certificado activo de ${ENVIRONMENT_LABELS[environment]}${
+													active.not_after
+														? `, que vence el ${formatDate(active.not_after)}`
+														: ''
+												}.`
+											: `No tiene un certificado activo de ${ENVIRONMENT_LABELS[environment]}.`
+									}
+								>
+									<NativeSelect
+										id="organization"
+										className="w-full"
+										value={organization.id}
+										onChange={(e) => {
+											setOrganizationId(e.target.value)
+											clear()
+										}}
+									>
+										{usable.map((o) => (
+											<NativeSelectOption key={o.id} value={o.id}>
+												{`${o.name} (${o.country})`}
+											</NativeSelectOption>
+										))}
+									</NativeSelect>
+								</FormField>
+								<FormField label="Ambiente">
+									<EnvironmentPicker
+										value={environment}
+										onChange={(env) => {
+											setEnvironment(env)
+											clear()
+										}}
+									/>
+								</FormField>
+							</>
+						) : null}
 						<FormField
 							label="Documento firmado"
 							htmlFor="document"
-							help="Un JWT de El Salvador o el XML firmado de Costa Rica, Guatemala, Panamá o República Dominicana."
+							help={
+								mode === 'api'
+									? 'El JWT de El Salvador o el XML firmado de los demás países.'
+									: 'Un JWT de El Salvador o el XML firmado de Costa Rica, Guatemala, Panamá o República Dominicana.'
+							}
 						>
 							<Textarea
 								id="document"
@@ -104,61 +277,65 @@ function Verify() {
 								value={signed}
 								onChange={(e) => {
 									setSigned(e.target.value)
-									setResult(null)
+									clear()
 								}}
 							/>
 						</FormField>
-						<FormField
-							label="Certificado"
-							htmlFor="certificate"
-							help={
-								jwt
-									? 'Un JWT de El Salvador no lleva el certificado: pegue el del emisor (.crt del MH, .pem o .cer) o súbalo.'
-									: 'Opcional: un XML firmado lleva el certificado dentro de la firma.'
-							}
-							aside={
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									onClick={() => file.current?.click()}
-								>
-									<UploadIcon />
-									Subir
-								</Button>
-							}
-						>
-							<Textarea
-								id="certificate"
-								spellCheck={false}
-								className="max-h-48 min-h-24 overflow-y-auto font-mono text-label break-all"
-								placeholder="-----BEGIN CERTIFICATE-----"
-								value={certificate}
-								onChange={(e) => {
-									setCertificate(e.target.value)
-									setResult(null)
-								}}
-							/>
-							<input
-								ref={file}
-								type="file"
-								accept=".crt,.pem,.cer,.xml"
-								className="hidden"
-								onChange={async (e) => {
-									const chosen = e.target.files?.[0]
-									e.target.value = ''
-									if (!chosen) return
-									setCertificate(await chosen.text())
-									setResult(null)
-								}}
-							/>
-						</FormField>
+						{mode === 'browser' ? (
+							<FormField
+								label="Certificado"
+								htmlFor="certificate"
+								help={
+									jwt
+										? 'Un JWT de El Salvador no lleva el certificado: pegue el del emisor (.crt del MH, .pem o .cer) o súbalo.'
+										: 'Opcional: un XML firmado lleva el certificado dentro de la firma.'
+								}
+								aside={
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() => file.current?.click()}
+									>
+										<UploadIcon />
+										Subir
+									</Button>
+								}
+							>
+								<Textarea
+									id="certificate"
+									spellCheck={false}
+									className="max-h-48 min-h-24 overflow-y-auto font-mono text-label break-all"
+									placeholder="-----BEGIN CERTIFICATE-----"
+									value={certificate}
+									onChange={(e) => {
+										setCertificate(e.target.value)
+										clear()
+									}}
+								/>
+								<input
+									ref={file}
+									type="file"
+									accept=".crt,.pem,.cer,.xml"
+									className="hidden"
+									onChange={async (e) => {
+										const chosenFile = e.target.files?.[0]
+										e.target.value = ''
+										if (!chosenFile) return
+										setCertificate(await chosenFile.text())
+										clear()
+									}}
+								/>
+							</FormField>
+						) : null}
 						<div className="flex flex-wrap gap-2">
 							<Button
 								type="submit"
-								disabled={verifying || !signed.trim() || needsCertificate}
+								disabled={
+									verify.isPending || !signed.trim() || needsCertificate
+								}
 							>
-								{verifying ? 'Verificando…' : 'Verificar la firma'}
+								{verify.isPending ? 'Verificando…' : 'Verificar la firma'}
 							</Button>
 							{signed || certificate ? (
 								<Button
@@ -167,7 +344,7 @@ function Verify() {
 									onClick={() => {
 										setSigned('')
 										setCertificate('')
-										setResult(null)
+										clear()
 									}}
 								>
 									Limpiar

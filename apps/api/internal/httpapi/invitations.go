@@ -215,6 +215,84 @@ func (s *Server) updateMember(w http.ResponseWriter, r *http.Request, c *call) {
 	writeJSON(w, http.StatusOK, memberView{UserID: m.UserID, Email: m.Email, Name: m.Name, Role: m.Role})
 }
 
+// renewInvitation handles POST /workspaces/{w}/invitations/{i}/renewals:
+// the same invitation, expired or not, with a new token and 7 more days.
+// The old link stops working; the token is answered once, as on creating.
+func (s *Server) renewInvitation(w http.ResponseWriter, r *http.Request, c *call) {
+	if p := s.managesMembers(c); p != nil {
+		writeProblem(w, p)
+		return
+	}
+	token, hash := auth.NewInvitationToken()
+	inv, err := s.Store.RenewInvitation(r.Context(), c.ws.ID, pathID(r, "invitation_id"), hash, c.role)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeProblem(w, errInvitationNotFound)
+		return
+	case errors.Is(err, store.ErrMembersManaged):
+		writeProblem(w, errMembersManaged)
+		return
+	case errors.Is(err, store.ErrRoleForbidden):
+		writeProblem(w, forbidden("Solo un propietario puede invitar a otro propietario."))
+		return
+	case errors.Is(err, store.ErrAlreadyMember):
+		writeProblem(w, problem(http.StatusConflict, "already-member", "Esa persona ya es miembro del espacio."))
+		return
+	case errors.Is(err, store.ErrWorkspaceFull):
+		writeProblem(w, errWorkspaceFull)
+		return
+	case err != nil:
+		internalError(w, r, err)
+		return
+	}
+	slog.InfoContext(r.Context(), "invitation renewed", "workspace_id", c.ws.ID, "invitation_id", inv.ID)
+	view := s.invitationOf(inv)
+	view.Token = token
+	writeJSON(w, http.StatusOK, view)
+}
+
+// removeMember handles DELETE /workspaces/{w}/members/{user_id}: owners and
+// admins take someone added in Sign out of the space (only an owner takes
+// an owner), and anyone leaves by themselves. The space never loses its
+// last owner.
+func (s *Server) removeMember(w http.ResponseWriter, r *http.Request, c *call) {
+	u := c.user()
+	if u == nil {
+		writeProblem(w, errTokenOnly)
+		return
+	}
+	userID := r.PathValue("user_id")
+	self := userID == u.Subject
+	if !self && !c.role.Manages() {
+		writeProblem(w, forbidden("Solo quien administra el espacio puede quitar a un miembro."))
+		return
+	}
+	if c.ws.SelloWorkspaceID != nil {
+		writeProblem(w, errMembersManaged)
+		return
+	}
+	err := s.Store.RemoveMember(r.Context(), c.ws.ID, userID, c.role, self)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeProblem(w, errMemberNotFound)
+		return
+	case errors.Is(err, store.ErrMembersManaged):
+		writeProblem(w, errMembersManaged)
+		return
+	case errors.Is(err, store.ErrRoleForbidden):
+		writeProblem(w, forbidden("Solo un propietario puede quitar a otro propietario."))
+		return
+	case errors.Is(err, store.ErrLastOwner):
+		writeProblem(w, problem(http.StatusConflict, "last-owner", "El espacio se quedaría sin propietario. Haga propietario a otra persona antes."))
+		return
+	case err != nil:
+		internalError(w, r, err)
+		return
+	}
+	slog.InfoContext(r.Context(), "member removed", "workspace_id", c.ws.ID, "self", self)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // invitationToken reads { "token" } of the person's request; the problem
 // for anything that isn't an invitation's token is the one for a revoked
 // or unknown invitation.

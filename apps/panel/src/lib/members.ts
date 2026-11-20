@@ -24,6 +24,19 @@ export function canChangeRole(mine: Role | null, theirs: Role): boolean {
 	return theirs !== 'owner' || mine === 'owner'
 }
 
+/** Whether someone with role `mine` can take a member who has `theirs` out
+ * of the space (`model.CanRemove`): anyone leaves by themselves; owners and
+ * admins remove others, and only an owner removes an owner. That the space
+ * keeps an owner is the API's to say (`last-owner`). */
+export function canRemove(
+	mine: Role | null,
+	theirs: Role,
+	self: boolean
+): boolean {
+	if (self) return mine !== null
+	return canChangeRole(mine, theirs)
+}
+
 /**
  * Where the members of a space of an organization of Sello are invited and
  * changed: «Su cuenta › Organización › Miembros y acceso», under Sello Sign,

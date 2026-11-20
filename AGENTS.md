@@ -15,8 +15,9 @@ el plan y su estado, en [`docs/rebuild.md`](docs/rebuild.md).
 
 - `apps/api`: el API de firma, en Go (módulo `proxima.la/sello/sign`, Go 1.26),
   en `127.0.0.1:4441` (`api.sign.sello.test`). Solo la biblioteca estándar
-  para HTTP (`net/http` con sus patrones), `pgx` para Postgres y un cliente de
-  Valkey.
+  para HTTP (`net/http` con sus patrones), `pgx` para Postgres, un cliente de
+  Valkey y, para el servidor MCP, el SDK oficial de Go
+  (`github.com/modelcontextprotocol/go-sdk`, el de Sello Chat).
   - `internal/signing`: lo común de los firmadores (`Country`, `Material`,
     `Registry`, la lectura de certificados), sin ningún país.
     `internal/signing/c14n`, la canonicalización propia;
@@ -34,7 +35,9 @@ el plan y su estado, en [`docs/rebuild.md`](docs/rebuild.md).
     `internal/ratelimit` (las firmas por minuto), `internal/retention` (lo
     vencido del registro de firmas) e `internal/httpapi` (las rutas, con una copia de `contracts/openapi.yaml`
     que refresca `go generate ./internal/httpapi`, y una prueba que compara
-    las rutas con el contrato).
+    las rutas con el contrato; y el servidor MCP, `POST /mcp`, en `mcp.go`:
+    cada herramienta llama en proceso a su ruta con la misma clave, así que
+    una ruta que cambia cambia también su herramienta).
   - `cmd/api`: el servidor y, sin panel, una consola (`migrate`,
     `workspace create`, `workspace limits`, `member add`, `key create`).
 - `apps/panel`: el panel, TanStack Start (React, TanStack Router y Query,

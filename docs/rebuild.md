@@ -50,11 +50,18 @@ encuentro: se extienden sin romper a quien los usa.
 
 ## Fase 2: después
 
-- El servidor MCP (las herramientas de `../sign-old/docs/api.md`).
+- El servidor MCP (las herramientas de `../sign-old/docs/api.md`): hecho en
+  el API el 2026-11-20 («API»). Falta que el panel lo enseñe (cómo
+  conectarlo con una clave) y que el landing de Sello lo cuente.
 - Los avisos y las tareas programadas: certificados por vencer, el uso del
   plan, el reporte de uso a billing cada hora.
-- La bitácora de auditoría y la exportación. (Las invitaciones por correo y
-  el cambio de rol de los miembros, hechos el 2026-11-20: «API» y «Panel».)
+- La bitácora de auditoría. (Las invitaciones por correo, el cambio de rol
+  de los miembros, quitarlos y salir de un espacio, reenviar una invitación,
+  verificar una firma por el API desde el panel, exportar los datos de un
+  espacio y borrar la cuenta en una instalación propia, hechos el
+  2026-11-20: «API» y «Panel».)
+- Borrar un espacio (`DELETE /workspaces/{w}`): hoy solo se borra el de
+  quien borra su cuenta y es su único miembro.
 - Guardar las firmas (`store_signatures`) en un almacén S3.
 - Los límites por plan y por minuto, y la retención del registro de firmas:
   hechos en el API el 2026-11-20 («API»). Falta que el panel muestre sus
@@ -330,6 +337,17 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   espacio de una organización de Sello (`sello_workspace_id`) no se invita
   ni se cambia un rol: la página enlaza a «Su cuenta › Organización ›
   Miembros y acceso» del centro de cuenta (`lib/members.ts`).
+- **Quitar a un miembro, salir y reenviar** (2026-11-20): cada fila de
+  «Miembros» lleva «Quitar» (lo que el API deja: un administrador no quita a
+  un propietario, `canRemove` de `lib/members.ts`) o, en la propia, «Salir
+  del espacio», con su confirmación («¿Quitar a …?», «¿Salir del
+  espacio?»); al último propietario no se le ofrece ninguno. Quien sale
+  vuelve al selector de espacios. Cada invitación pendiente, también una
+  vencida, lleva «Reenviar»: el servidor del panel le pide al API que la
+  renueve y manda el correo con el enlace nuevo
+  (`resendInvitation` de `server/invitations.ts`, `resendAndSend` de
+  `lib/invitations.ts`); el diálogo dice que el enlace anterior ya no
+  funciona y lo da para copiarlo, como al invitar.
 - **La cuenta** («Su cuenta», en el menú de la cuenta; `/w/<id>/account`):
   el nombre, la contraseña (pide la actual y puede cerrar las demás
   sesiones; si la cuenta solo entra con el proveedor OIDC, lo dice) y las
@@ -338,14 +356,38 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   reescribe en cada inicio de sesión) y no hay contraseña: lo dice, y con
   `CLOUD=true` enlaza a «Datos personales» y «Seguridad» del centro de cuenta
   de Sello (`/u/0/sign/profile` y `/u/0/sign/security`, con `?redirect=`).
-- **Verificar una firma** (`/w/<id>/verify`): en el navegador, con el
-  verificador del sitio de Sello (`sello.tax/sign/verify`), que es una copia
-  exacta del de `../sign-old` (`src/lib/verify-client.ts`, fuera de Prettier;
-  `verify-client.test.ts` compara las dos copias si `../sign-old` está al
-  lado). El contrato tiene `POST /verifications`, pero solo con una clave de
-  API, no con el token del panel; si el contrato la abre al token, el panel
-  puede pasar a usarla. Un JWS de El Salvador pide el certificado del emisor
-  (pegado o subido): el contrato no da el certificado de una organización.
+- **Borrar la cuenta** (2026-11-20, solo en una instalación propia: no con
+  `CLOUD`, donde se pide por correo, ni con `OIDC_ONLY`, donde el proveedor
+  la volvería a crear; `accountDeletion` de la configuración pública): al
+  final de «Su cuenta», «Borrar la cuenta» abre «¿Borrar su cuenta?», que
+  dice antes qué pasa con cada espacio (`GET /me/account-deletion`): de los
+  que es el único propietario con otros miembros, o el único miembro de uno
+  cuyas organizaciones usan otros espacios, pide resolverlo primero (con el
+  enlace a «Miembros» u «Organizaciones») y no ofrece borrar; si no, lista
+  los espacios que se borrarán con la cuenta (aquellos de los que es el
+  único miembro, con la sugerencia de exportarlos antes) y de los que
+  saldrá, y pide la contraseña (sin ella, si la cuenta solo entra con un
+  proveedor, una sesión de menos de 10 minutos). Lo hace el servidor del
+  panel (`server/account.ts`, `lib/account-deletion.ts`): verifica la
+  contraseña, llama a `DELETE /me` con el token de la persona y solo
+  después borra en better-auth el usuario, sus sesiones y sus cuentas.
+  `/delete-user` de better-auth sigue apagado, para que nada borre una
+  cuenta sin que el API se entere.
+- **Verificar una firma** (`/w/<id>/verify`), de dos maneras. **En Sello
+  Sign** (por defecto, si el espacio tiene una organización propia, o
+  delegada con `sign` o `certificates:read`): se elige la organización y el
+  ambiente, y el API verifica con su certificado activo
+  (`POST /verifications` con el token, desde el 2026-11-20), en memoria y sin
+  guardar nada; así un JWS de El Salvador ya no pide pegar el certificado.
+  **En su navegador**, sin enviar nada: el verificador del sitio de Sello
+  (`sello.tax/sign/verify`), que es una copia exacta del de `../sign-old`
+  (`src/lib/verify-client.ts`, fuera de Prettier; `verify-client.test.ts`
+  compara las dos copias si `../sign-old` está al lado); ahí un JWS de El
+  Salvador pide el certificado del emisor (pegado o subido).
+- **Exportar los datos** (2026-11-20): en «General», para quien administra
+  el espacio, «Exportar los datos» descarga el JSON de
+  `GET /workspaces/{w}/export` (`lib/download.ts`; el proxy de `/api/sign`
+  pasa también `Content-Disposition`).
 - **En el móvil**, las tablas largas (registro de firmas, organizaciones,
   certificados, delegaciones, claves y la actividad del resumen) son una
   tarjeta por fila (`src/styles/cards.css` y `TableCards`, con `data-label`
@@ -367,6 +409,15 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   (el correo por la consola), abrir el enlace sin sesión, iniciarla, volver y
   aceptar; el enlace de otro correo, el revocado, la invitación repetida, el
   cambio de rol y el último propietario, de día, de noche y en el móvil.
+  Lo del 2026-11-20, igual, con el panel construido (`bun run build`) en el
+  `:4443` y un API en el `:4444` contra su propia base: quitar a un miembro,
+  salir del espacio (y volver al selector), reenviar una invitación,
+  verificar en Sello Sign un JWS de El Salvador firmado desde el panel con un
+  certificado de `devcert` (válido, sin pegar el certificado) y en el
+  navegador, exportar los datos (la descarga y su nombre), y borrar la
+  cuenta: bloqueada por ser la única propietaria de un espacio con otros, y
+  la de otra persona, que borró su espacio solitario, salió del otro y ya no
+  pudo iniciar sesión; de día, de noche y en el móvil.
 - **Sin probar:** El Salvador (su firmador todavía no estaba en el API:
   `country-not-implemented`), el OIDC contra un proveedor real, la nube
   (`/me/sello-organizations`, abrir el espacio de una organización de Sello y
@@ -375,10 +426,10 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   typecheck) y el verificador con El Salvador, Guatemala, Panamá y República
   Dominicana desde el panel (se probó Costa Rica, válida y alterada; los
   demás se prueban en `../sign-old`).
-- **Falta:** quitar a un miembro (el contrato aún no lo tiene), reenviar una
-  invitación (hoy se revoca y se envía otra), cambiar el correo de la cuenta
-  y borrarla, y una
-  dirección de la cuenta fuera de un espacio (hoy cuelga de `/w/<id>/`).
+- **Falta:** cambiar el correo de la cuenta, una dirección de la cuenta
+  fuera de un espacio (hoy cuelga de `/w/<id>/`; quien no está en ningún
+  espacio no llega a «Su cuenta» ni puede borrarla desde el panel) y borrar
+  un espacio por sí solo.
 
 Cómo se levanta y sus variables, en `apps/panel/README.md` y
 `apps/panel/.env.example`: `DATABASE_URL`, `BETTER_AUTH_SECRET`,
@@ -468,6 +519,64 @@ con las del contrato).
   `../sign-old`: invitar, revocar, aceptar o cambiar un rol ahí es
   `409 members-managed-by-sello`. Las invitaciones son de los demás
   espacios: los de una instalación propia y el de la plataforma.
+- **Quitar a un miembro y renovar una invitación** (2026-11-20, sin
+  migración): `DELETE /workspaces/{w}/members/{user_id}` (`store.RemoveMember`,
+  `model.CanRemove`): `owner` y `admin` quitan a otros (solo un `owner` a un
+  `owner`) y cualquiera sale por sí mismo; bloquea la fila del espacio, como
+  cambiar un rol, así que el último propietario no se va
+  (`409 last-owner`). Lo del espacio se queda (las claves que creó la
+  persona, sus invitaciones, sus firmas en el registro): es del espacio, no
+  de ella. Reenviar es **renovar**
+  (`POST /workspaces/{w}/invitations/{i}/renewals`, `store.RenewInvitation`):
+  el API guarda solo el SHA-256 del token, así que no puede volver a dar el
+  mismo; la misma fila recibe otro hash y 7 días desde ahora, en una
+  transacción, y responde el token nuevo una vez. Se eligió eso y no
+  revocar y crear otra (dos llamadas que pueden quedar a medias, otro id)
+  ni un reenvío del mismo enlace (que pediría guardar el token): la
+  invitación sigue siendo una, y el enlace viejo deja de valer. Valen las
+  comprobaciones de crearla (`CanInvite` con su rol, `already-member`,
+  `workspace-full`).
+- **Verificar con el token** (2026-11-20): `POST /verifications` acepta
+  también el token del panel. `X-Organization-Id` (id o NIT) se resuelve
+  entre las organizaciones de todos los espacios de la persona
+  (`store.ResolveOrganizationForPerson`: la del dueño primero, después una
+  delegación que firma); cualquier rol vale, en un espacio dueño o en uno
+  delegado con `sign` o `certificates:read`, y el ambiente va en
+  `environment` del cuerpo, obligatorio con el token (con una clave, el de
+  la clave). Verificar no se registra ni cuenta en el uso. Un certificado
+  vencido ya no impide verificar (con una clave tampoco): lo que firmó
+  mientras valía se puede comprobar; firmar con él sigue siendo
+  `409 certificate-expired`.
+- **Exportar** (2026-11-20): `GET /workspaces/{w}/export` (token, `owner` o
+  `admin`; `export.go`) arma al momento un JSON (`sello-sign-export/1`) y no
+  guarda nada: el espacio, sus organizaciones (propias y delegadas) con todos
+  sus certificados (los datos públicos; `null` si la delegación no deja
+  leerlos) y las delegaciones que dio, sus claves también revocadas (sin
+  hash), sus miembros, sus invitaciones abiertas (sin token), su uso y su
+  registro de firmas, que va al final y se escribe a medida que se lee, de a
+  1000 (`store.EachSignature`), sin tener una conexión mientras escribe. Lo
+  anterior al registro se lee antes de responder (un error es un `500`
+  normal); si el registro falla a medias, la conexión se corta
+  (`http.ErrAbortHandler`) para que no quede un JSON que parezca entero. No
+  es una foto de un instante: cada parte se lee por separado.
+- **Borrar la cuenta** (2026-11-20, instalación propia; en la nube,
+  `404 not-self-hosted`): `GET /me/account-deletion` dice, por espacio,
+  `leave`, `delete` (es su único miembro), `transfer` (su único propietario,
+  con otros miembros) o `delegated` (su único miembro, con organizaciones que
+  otros espacios usan); los dos últimos impiden borrarla
+  (`store.AccountSpaces`). `DELETE /me` (`store.DeleteAccount`) lo vuelve a
+  calcular bajo el bloqueo de esos espacios, en orden de id, y en la misma
+  transacción borra los de `delete` (sus organizaciones primero, que no
+  caen en cascada desde el espacio; con ellas, sus certificados, sus
+  delegaciones y sus claves; con el espacio, lo demás), las membresías y la
+  fila de `users`, o responde `409 account-has-workspaces` sin cambiar nada.
+  Después saca de la caché de Valkey las claves borradas y olvida el
+  material de los certificados. Lo que la persona hizo en los espacios que
+  quedan (sus claves, sus invitaciones, su `user_id` en el registro) se
+  queda hasta que el espacio lo borre o venza. Se decidió borrar los
+  espacios de los que es el único miembro, y no dejarlos, porque nadie
+  podría administrarlos y sus claves seguirían firmando, y no borrar nunca
+  uno con otros miembros.
 - **La retención del registro:** cada entrada de `signing_log` se guarda los
   días de `retention_days` del espacio que firmó (en la nube, los del plan:
   7, 30, 90, 180 y 365 días de Free a Business, sin plazo en Enterprise; en
@@ -476,6 +585,38 @@ con las del contrato).
   contó. Una tarea la borra cada hora, en lotes de 5000 y bajo un _advisory
   lock_, por el id (UUIDv7, ordenado por tiempo), con el índice que ya existía.
   Lo contado en `usage_counters` se queda: se cobra.
+- **El servidor MCP** (desde el 2026-11-20, `internal/httpapi/mcp.go`; el
+  contrato, en «Servidor MCP» de `contracts/README.md`): `POST /mcp`, con el
+  SDK oficial de Go (`github.com/modelcontextprotocol/go-sdk` v1.8.0, el de
+  Sello Chat; la única dependencia más, y no es de HTTP: el ruteo sigue
+  siendo el `ServeMux`), Streamable HTTP sin estado y con respuestas JSON;
+  `GET` y `DELETE /mcp` son `405` (registrados a mano: la ruta comodín
+  respondería `404`). Se entra con una clave (`X-API-Key` o
+  `Authorization: Bearer sign_…`), que se resuelve como en cada ruta; cada
+  `POST` arma un servidor con las herramientas que sus scopes permiten, y
+  cada herramienta es una llamada en proceso a su ruta, por el mismo
+  `ServeMux` y con la misma clave: no hay un segundo camino para los
+  permisos, los límites, los errores ni el registro de firmas (y el log dice
+  `mcp tool` con la herramienta, la ruta, el estado y la duración, nunca los
+  argumentos). Las herramientas son las de `../sign-old` con el modelo nuevo
+  (organizaciones en vez de emisores; además, `get_workspace`, `get_usage` y
+  las delegaciones), sin subir certificados ni crear claves, como allí.
+  Decidido al hacerlo: los argumentos se leen tal como llegan, sin las
+  herramientas tipadas del SDK, que los decodifican a un mapa y los vuelven a
+  escribir (el documento perdería el orden de sus claves, y el JWS de El
+  Salvador lo firma); `deactivate_certificate` lleva `destructiveHint`
+  porque deja de firmar; un error de la ruta es el resultado de la
+  herramienta, con su problema y `retry_after`. **Probado:** que cada
+  herramienta llama a una ruta que existe, la lista según los scopes y sus
+  anotaciones, los argumentos (el documento byte a byte) y, con
+  `POSTGRES_TEST_URL`, una conversación por HTTP (`initialize`,
+  `tools/list` según los scopes, una firma que llega igual al firmador y
+  queda en el registro con su clave, sus errores, el límite por minuto como
+  error de la herramienta, sin clave, con el token del panel, otro origen y
+  `GET`) y la gestión con el cliente del SDK (organizaciones, certificados,
+  delegaciones, una clave de una sola organización, revocar una clave, que
+  deja de entrar). A mano, firmar y verificar un DTE con el firmador de El
+  Salvador por `sign_document`, con las claves en su orden.
 - **Lo que se decidió al hacerlo** (y está en el contrato): toda lista
   responde `{ items, next_cursor }`, y solo se paginan las que crecen; el NIT
   se compara sin separadores (en `X-Organization-Id` y en la idempotencia);
@@ -516,12 +657,20 @@ con las del contrato).
   reemplazo, la aceptada por otra cuenta, el límite de miembros, un espacio
   de una organización de Sello) y los roles (lo que puede un administrador,
   el último propietario, también con dos propietarios que se quitan el rol a
-  la vez). Con `VALKEY_TEST_URL`, el límite por
+  la vez), y desde el 2026-11-20 quitar a un miembro y salir (también en un
+  espacio de una organización de Sello), renovar una invitación (vencida, la
+  aceptada, la de un propietario, un espacio lleno), verificar con el token
+  (por id y NIT, el ambiente, de otro espacio, una delegación sin `sign`
+  ni `certificates:read` y con `certificates:read`, un certificado vencido,
+  una clave con otro ambiente, que no se registra), la exportación (sin
+  hash, token ni clave; con más de un lote del registro; una organización
+  delegada) y borrar la cuenta (cada desenlace, lo que bloquea y lo que se
+  borra, la clave que deja de valer al momento, y la nube). Con `VALKEY_TEST_URL`, el límite por
   minuto contra Valkey. Además, a mano, firmar y verificar un DTE
   con el firmador de El Salvador y un certificado de
   `../sello/apps/api/tools/devcert`.
-- **Falta** (fase 2): quitar a un miembro,
-  los avisos, el MCP y la bitácora de auditoría.
+- **Falta** (fase 2): los avisos, la bitácora de auditoría y borrar un
+  espacio por sí solo.
 
 **En local**, desde `apps/api`, con `podman compose up -d` en la raíz:
 

@@ -5,8 +5,15 @@ import {
 	invitationLink,
 	inviteAndSend,
 	parseInviteInput,
+	parseResendInput,
+	resendAndSend,
 } from './invitations'
-import { canChangeRole, membersPageUrl, rolesToGive } from './members'
+import {
+	canChangeRole,
+	canRemove,
+	membersPageUrl,
+	rolesToGive,
+} from './members'
 
 const created: CreatedInvitation = {
 	id: 'i1',
@@ -116,6 +123,63 @@ describe('inviteAndSend', () => {
 	})
 })
 
+describe('resendAndSend', () => {
+	it('renews it and sends the new link', async () => {
+		const renewed = { ...created, token: 'sign_inv_NEW' }
+		const api = {
+			renewInvitation: vi.fn(async () => renewed),
+			workspace: vi.fn(async () => ({ name: 'Proveedor' }) as never),
+		}
+		const send = vi.fn(async () => {})
+		const result = await resendAndSend({
+			api,
+			send,
+			panelUrl: 'https://sign.sello.tax',
+			inviterName: 'Beto',
+			workspaceId: 'w1',
+			invitationId: 'i1',
+		})
+		expect(api.renewInvitation).toHaveBeenCalledWith('w1', 'i1')
+		expect(result).toMatchObject({
+			ok: true,
+			link: 'https://sign.sello.tax/invitation?token=sign_inv_NEW',
+			emailed: true,
+		})
+		const message = (send.mock.calls[0] as unknown as [{ subject: string }])[0]
+		expect(message.subject).toBe('Beto le invitó a Proveedor en Sello Sign')
+	})
+
+	it('answers the API problem without sending', async () => {
+		const send = vi.fn(async () => {})
+		const problem = { type: 'workspace-full', title: 'Conflict', status: 409 }
+		const result = await resendAndSend({
+			api: {
+				renewInvitation: vi.fn(async () => {
+					throw new ApiError(409, problem)
+				}),
+				workspace: vi.fn(async () => ({ name: 'P' }) as never),
+			},
+			send,
+			panelUrl: 'https://sign.sello.tax',
+			inviterName: 'Beto',
+			workspaceId: 'w1',
+			invitationId: 'i1',
+		})
+		expect(result).toEqual({ ok: false, status: 409, problem })
+		expect(send).not.toHaveBeenCalled()
+	})
+})
+
+describe('parseResendInput', () => {
+	it('takes a space and an invitation', () => {
+		expect(parseResendInput({ workspaceId: 'w', invitationId: 'i' })).toEqual({
+			workspaceId: 'w',
+			invitationId: 'i',
+		})
+		expect(() => parseResendInput({ workspaceId: 'w' })).toThrow()
+	})
+})
+
 describe('parseInviteInput', () => {
 	it('takes a space, an address and a role, and nothing else', () => {
 		expect(
@@ -137,6 +201,16 @@ describe('members', () => {
 		expect(canChangeRole('admin', 'owner')).toBe(false)
 		expect(canChangeRole('owner', 'owner')).toBe(true)
 		expect(canChangeRole('member', 'member')).toBe(false)
+	})
+
+	it('lets anyone leave, and managers remove others as the API does', () => {
+		expect(canRemove('member', 'member', true)).toBe(true)
+		expect(canRemove('owner', 'owner', true)).toBe(true)
+		expect(canRemove(null, 'member', true)).toBe(false)
+		expect(canRemove('member', 'member', false)).toBe(false)
+		expect(canRemove('admin', 'admin', false)).toBe(true)
+		expect(canRemove('admin', 'owner', false)).toBe(false)
+		expect(canRemove('owner', 'owner', false)).toBe(true)
 	})
 
 	it('links to the members of the organization at Sello', () => {
