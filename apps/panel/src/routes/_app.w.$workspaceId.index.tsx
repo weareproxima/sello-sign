@@ -20,6 +20,7 @@ import {
 import { TableCards } from '#/components/table-cards'
 import { Empty } from '#/components/empty'
 import { FormError, Page, PageHeader } from '#/components/page'
+import { PlanLimits } from '#/components/plan-limits'
 import { api, errorMessage, type Certificate } from '#/lib/api'
 import { buttonVariants } from '#/lib/button-variants'
 import {
@@ -29,6 +30,7 @@ import {
 	formatDateTime,
 	formatNumber,
 } from '#/lib/format'
+import { monthlyCap, monthlyQuota } from '#/lib/limits'
 import { useWorkspace } from '#/lib/workspace'
 import { cn } from '#/lib/utils'
 
@@ -41,10 +43,16 @@ export const Route = createFileRoute('/_app/w/$workspaceId/')({
 const SOON_DAYS = 30
 
 function Dashboard() {
-	const { workspaceId, workspace } = useWorkspace()
+	const { workspaceId, workspace, canManage } = useWorkspace()
 	const usage = useQuery({
 		queryKey: ['usage', workspaceId],
 		queryFn: () => api.usage(workspaceId),
+	})
+	// The space's own signatures a minute (`requests_per_minute`), which the
+	// usage doesn't carry.
+	const details = useQuery({
+		queryKey: ['workspace', workspaceId],
+		queryFn: () => api.workspace(workspaceId),
 	})
 	const organizations = useQuery({
 		queryKey: ['organizations', workspaceId],
@@ -84,13 +92,15 @@ function Dashboard() {
 				<UsageCard
 					label="Firmas de producción este mes"
 					used={used('prod')}
-					limit={limits?.prod_signatures ?? null}
+					quota={limits ? monthlyQuota(limits, 'prod') : null}
+					cap={limits ? monthlyCap(limits, 'prod') : null}
 					loading={usage.isPending}
 				/>
 				<UsageCard
 					label="Firmas de prueba este mes"
 					used={used('test')}
-					limit={limits?.test_signatures ?? null}
+					quota={limits ? monthlyQuota(limits, 'test') : null}
+					cap={limits ? monthlyCap(limits, 'test') : null}
 					loading={usage.isPending}
 				/>
 				<Card className="gap-2">
@@ -128,6 +138,19 @@ function Dashboard() {
 
 			{usage.error ? (
 				<FormError message={errorMessage(usage.error, 'leer el uso')} />
+			) : usage.data ? (
+				<PlanLimits
+					workspaceId={workspaceId}
+					plan={usage.data.plan}
+					limits={usage.data.limits}
+					ownRate={details.data?.requests_per_minute ?? null}
+					ownedOrganizations={
+						organizations.data
+							? organizations.data.filter((o) => o.relation === 'owned').length
+							: null
+					}
+					canManage={canManage}
+				/>
 			) : null}
 
 			{atRisk.length > 0 ? (
@@ -269,19 +292,27 @@ function Dashboard() {
 	)
 }
 
+/**
+ * The month's signatures in an environment against the plan: its quota and,
+ * when signing goes on past it (a paid plan's overage in production, a
+ * margin in test), the cap where it stops (`429 monthly-limit-reached`).
+ */
 function UsageCard({
 	label,
 	used,
-	limit,
+	quota,
+	cap,
 	loading,
 }: {
 	label: string
 	used: number
-	limit: number | null
+	quota: number | null
+	cap: number | null
 	loading: boolean
 }) {
+	const limit = quota ?? cap
 	const ratio = limit ? Math.min(used / limit, 1) : 0
-	const exhausted = limit !== null && used >= limit
+	const exhausted = cap !== null && used >= cap
 	return (
 		<Card className="gap-2">
 			<CardDescription>{label}</CardDescription>
@@ -294,6 +325,10 @@ function UsageCard({
 			)}
 			<p className="text-meta text-muted-foreground">
 				{limit === null ? 'Sin tope' : `de ${formatNumber(limit)} del plan`}
+				{cap !== null && cap !== limit
+					? `, con tope de ${formatNumber(cap)}`
+					: null}
+				{exhausted ? '. Alcanzó el límite de este mes.' : null}
 			</p>
 			{limit !== null ? (
 				<div className="h-1.5 overflow-hidden rounded-full bg-fill" aria-hidden>

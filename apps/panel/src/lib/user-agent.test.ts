@@ -37,10 +37,10 @@ describe('accountCenterPage', () => {
 			accountCenterPage(
 				'https://account.sello.tax',
 				'security',
-				'https://sign.sello.tax/w/1/account'
+				'https://sign.sello.tax/account'
 			)
 		).toBe(
-			'https://account.sello.tax/u/0/sign/security?redirect=https%3A%2F%2Fsign.sello.tax%2Fw%2F1%2Faccount'
+			'https://account.sello.tax/u/0/sign/security?redirect=https%3A%2F%2Fsign.sello.tax%2Faccount'
 		)
 	})
 })

@@ -1,7 +1,17 @@
 import * as React from 'react'
-import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
+import {
+	Link,
+	createFileRoute,
+	useNavigate,
+	useRouter,
+} from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ExternalLinkIcon, MonitorSmartphoneIcon } from 'lucide-react'
+import {
+	ArrowLeftIcon,
+	ExternalLinkIcon,
+	LogOutIcon,
+	MonitorSmartphoneIcon,
+} from 'lucide-react'
 import {
 	Dialog,
 	DialogContent,
@@ -22,30 +32,59 @@ import {
 import { Input } from '#/components/ui/input'
 import { Skeleton } from '#/components/ui/skeleton'
 import { Confirm } from '#/components/confirm'
+import { Logo } from '#/components/logo'
 import { FormError, FormField, Page, PageHeader } from '#/components/page'
 import {
 	deleteAccountMessage,
 	type DeleteAccountResult,
 } from '#/lib/account-deletion'
+import {
+	emailChangeMessage,
+	emailLinkOutcome,
+	type EmailChangeResult,
+} from '#/lib/account-email-change'
 import { api, clearToken, errorMessage, type AccountDeletion } from '#/lib/api'
 import { authClient } from '#/lib/auth-client'
 import { buttonVariants } from '#/lib/button-variants'
 import { formatDateTime } from '#/lib/format'
 import { notify } from '#/lib/notify'
 import { TEXT_LINK } from '#/lib/recipes'
+import { safeRedirect } from '#/lib/redirect'
 import { accountCenterPage, describeUserAgent } from '#/lib/user-agent'
-import { deleteAccount } from '#/server/account'
+import { meQuery } from '#/lib/workspace'
+import { deleteAccount, requestEmailChange } from '#/server/account'
+
+type Search = {
+	/** Where «Volver» goes: the page the person came from. */
+	redirect?: string
+	/** `changed`, back from the link that changed the e-mail. */
+	email?: string
+	/** better-auth's, when that link no longer served. */
+	error?: string
+}
 
 /**
- * The person's account: their name, their password and their open sessions,
- * all better-auth's. With `OIDC_ONLY` the provider owns the name and the
- * password (better-auth rewrites the name at each sign-in), so they're shown,
- * not changed; in Sello's cloud they link to Sello's account center.
+ * The person's account, outside any space (`/account`), so that someone in
+ * no space reaches it too: their name and e-mail, their password and their
+ * open sessions, all better-auth's, and deleting the account. With
+ * `OIDC_ONLY` the provider owns the name, the e-mail and the password
+ * (better-auth rewrites them at each sign-in), so they're shown, not
+ * changed; in Sello's cloud they link to Sello's account center. Until
+ * 2026-11-20 it hung from a space (`/w/<id>/account`, which `lib/moved.ts`
+ * sends here).
  */
-export const Route = createFileRoute('/_app/w/$workspaceId/account')({
+export const Route = createFileRoute('/_app/account')({
+	validateSearch: (search: Record<string, unknown>): Search => ({
+		redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
+		email: typeof search.email === 'string' ? search.email : undefined,
+		error: typeof search.error === 'string' ? search.error : undefined,
+	}),
 	head: () => ({ meta: [{ title: 'Su cuenta — Sello Sign' }] }),
 	component: Account,
 })
+
+/** The address of the e-mail's link already handled in this page load. */
+let handledLink: string | null = null
 
 /** A better-auth error as a sentence of the panel. */
 function authError(
@@ -64,6 +103,9 @@ function authError(
 
 function Account() {
 	const { session, config } = Route.useRouteContext()
+	const search = Route.useSearch()
+	const navigate = useNavigate()
+	const queryClient = useQueryClient()
 	const managed = config.oidc?.only === true
 	const provider = config.oidc?.name ?? 'su proveedor'
 	const [here, setHere] = React.useState<string | undefined>()
@@ -72,27 +114,99 @@ function Account() {
 		config.accountCenter
 			? accountCenterPage(config.accountCenter, section, here)
 			: null
+	const back = safeRedirect(search.redirect)
+
+	// Back from the e-mail's link: say what happened, take it out of the
+	// address, and let the API read the new e-mail (`GET /me`, with a new
+	// token).
+	const [linkError] = React.useState<string | null>(() => {
+		const outcome = emailLinkOutcome(search)
+		return outcome && !outcome.changed ? outcome.message : null
+	})
+	React.useEffect(() => {
+		const outcome = emailLinkOutcome(search)
+		if (!outcome) return
+		// The page mounts twice on arrival (hydration): say it once per link.
+		if (outcome.changed && handledLink !== window.location.href) {
+			handledLink = window.location.href
+			notify('Correo actualizado.')
+			clearToken()
+			void queryClient.fetchQuery(meQuery).catch(() => {})
+		}
+		void navigate({
+			to: '/account',
+			search: { redirect: search.redirect },
+			replace: true,
+		})
+		// Once, on arrival.
+	}, [])
 
 	return (
-		<Page size="narrow">
-			<PageHeader
-				title="Su cuenta"
-				description="Su nombre, su contraseña y dónde tiene la sesión abierta. Valen para todos sus espacios."
-			/>
-			<Profile
-				name={session.user.name}
-				email={session.user.email}
-				managedBy={managed ? provider : null}
-				centerUrl={center('profile')}
-			/>
-			{managed ? (
-				<ManagedPassword provider={provider} centerUrl={center('security')} />
-			) : (
-				<Password provider={config.oidc?.name ?? null} />
-			)}
-			<Sessions />
-			{config.accountDeletion ? <DeleteAccount /> : null}
-		</Page>
+		<div className="flex min-h-svh flex-col items-center bg-subtle px-4 py-8 sm:py-12">
+			<div className="w-full max-w-3xl space-y-8">
+				<div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+					<Logo className="h-5 sm:h-6" />
+					<div className="flex items-center gap-1">
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => void navigate({ href: back })}
+						>
+							<ArrowLeftIcon />
+							Volver
+						</Button>
+						<SignOut />
+					</div>
+				</div>
+				<Page size="narrow">
+					<PageHeader
+						title="Su cuenta"
+						description="Su nombre, su correo, su contraseña y dónde tiene la sesión abierta. Valen para todos sus espacios."
+					/>
+					<FormError message={linkError} />
+					<Profile
+						name={session.user.name}
+						email={session.user.email}
+						managedBy={managed ? provider : null}
+						cloud={config.cloud}
+						centerUrl={center('profile')}
+						emailChange={config.emailChange}
+						providerId={config.oidc?.providerId ?? null}
+						providerName={config.oidc?.name ?? null}
+					/>
+					{managed ? (
+						<ManagedPassword
+							provider={provider}
+							centerUrl={center('security')}
+						/>
+					) : (
+						<Password provider={config.oidc?.name ?? null} />
+					)}
+					<Sessions />
+					{config.accountDeletion ? <DeleteAccount /> : null}
+				</Page>
+			</div>
+		</div>
+	)
+}
+
+function SignOut() {
+	const router = useRouter()
+	const queryClient = useQueryClient()
+	return (
+		<Button
+			variant="ghost"
+			size="sm"
+			onClick={async () => {
+				await authClient.signOut()
+				clearToken()
+				queryClient.clear()
+				await router.navigate({ to: '/sign-in' })
+			}}
+		>
+			<LogOutIcon />
+			Cerrar sesión
+		</Button>
 	)
 }
 
@@ -112,12 +226,20 @@ function Profile({
 	name: initial,
 	email,
 	managedBy,
+	cloud,
 	centerUrl,
+	emailChange,
+	providerId,
+	providerName,
 }: {
 	name: string
 	email: string
 	managedBy: string | null
+	cloud: boolean
 	centerUrl: string | null
+	emailChange: boolean
+	providerId: string | null
+	providerName: string | null
 }) {
 	const router = useRouter()
 	const [name, setName] = React.useState(initial)
@@ -132,6 +254,33 @@ function Profile({
 		},
 	})
 	const editable = !managedBy
+	// An account that signs in with the provider gets its e-mail from it.
+	const accounts = useQuery({
+		queryKey: ['auth-accounts'],
+		queryFn: async () => {
+			const { data, error } = await authClient.listAccounts()
+			if (error) throw error
+			return data
+		},
+		enabled: emailChange,
+	})
+	const fromProvider =
+		providerId !== null &&
+		(accounts.data?.some((a) => a.providerId === providerId) ?? false)
+	const [changing, setChanging] = React.useState(false)
+	const [sent, setSent] = React.useState<string | null>(null)
+
+	const emailHelp = managedBy
+		? null
+		: cloud
+			? 'Es el de su cuenta de Sello, y se cambia allí.'
+			: !emailChange
+				? 'El correo no se cambia en esta instalación.'
+				: fromProvider
+					? `Viene de su cuenta de ${providerName ?? 'su proveedor'}, y se cambia allí.`
+					: null
+	const canChange =
+		emailChange && !managedBy && accounts.isSuccess && !fromProvider
 
 	return (
 		<Card>
@@ -140,7 +289,7 @@ function Profile({
 				<CardDescription>
 					{managedBy
 						? `Su nombre y su correo vienen de su cuenta de ${managedBy}, y se cambian allí.`
-						: 'Su nombre aparece en los espacios donde es miembro. El correo no se cambia aquí.'}
+						: 'Su nombre aparece en los espacios donde es miembro.'}
 				</CardDescription>
 			</CardHeader>
 			<form
@@ -167,7 +316,27 @@ function Profile({
 						onChange={(e) => setName(e.target.value)}
 					/>
 				</FormField>
-				<FormField label="Correo electrónico" htmlFor="email">
+				<FormField
+					label="Correo electrónico"
+					htmlFor="email"
+					help={
+						sent
+							? `Le enviamos un enlace a ${sent}. Ábralo para terminar el cambio; vence en una hora. Hasta entonces, su cuenta sigue con este correo.`
+							: emailHelp
+					}
+					aside={
+						canChange ? (
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={() => setChanging(true)}
+							>
+								Cambiar el correo
+							</Button>
+						) : null
+					}
+				>
 					<Input id="email" type="email" disabled value={email} />
 				</FormField>
 				{editable ? (
@@ -180,8 +349,132 @@ function Profile({
 				) : centerUrl ? (
 					<CenterLink href={centerUrl}>Abrir su cuenta de Sello</CenterLink>
 				) : null}
+				{editable && cloud && centerUrl ? (
+					<CenterLink href={centerUrl}>Abrir su cuenta de Sello</CenterLink>
+				) : null}
 			</form>
+			{canChange ? (
+				<ChangeEmailDialog
+					open={changing}
+					onOpenChange={setChanging}
+					current={email}
+					onSent={(to) => {
+						setSent(to)
+						setChanging(false)
+						notify('Enlace enviado.')
+					}}
+				/>
+			) : null}
 		</Card>
+	)
+}
+
+/**
+ * Changing the e-mail (self-hosted, `config.emailChange`): with the current
+ * password, a link goes to the new address and a notice to the current one
+ * (`requestEmailChange` of `server/account.ts`). The e-mail changes when the
+ * link is opened, which comes back here.
+ */
+function ChangeEmailDialog({
+	open,
+	onOpenChange,
+	current,
+	onSent,
+}: {
+	open: boolean
+	onOpenChange: (open: boolean) => void
+	current: string
+	onSent: (email: string) => void
+}) {
+	const [email, setEmail] = React.useState('')
+	const [password, setPassword] = React.useState('')
+	const change = useMutation({
+		mutationFn: async (): Promise<EmailChangeResult> =>
+			requestEmailChange({ data: { email, password } }),
+		onSuccess: (result) => {
+			if (!result.ok) return
+			setEmail('')
+			setPassword('')
+			onSent(result.email)
+		},
+	})
+	const failed = change.data && !change.data.ok ? change.data : null
+
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(next) => {
+				if (!next) {
+					setPassword('')
+					change.reset()
+				}
+				onOpenChange(next)
+			}}
+		>
+			<DialogContent>
+				<form
+					className="space-y-6"
+					onSubmit={(e) => {
+						e.preventDefault()
+						change.mutate()
+					}}
+				>
+					<DialogHeader>
+						<DialogTitle>Cambiar el correo</DialogTitle>
+						<DialogDescription>
+							Le enviaremos un enlace al correo nuevo, y el cambio se hace
+							cuando lo abra. También avisaremos a {current}.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4">
+						<FormError
+							message={
+								failed
+									? emailChangeMessage(failed)
+									: change.error
+										? 'No se pudo enviar el enlace. Vuelva a intentarlo.'
+										: null
+							}
+						/>
+						<FormField label="Correo nuevo" htmlFor="new-email">
+							<Input
+								id="new-email"
+								type="email"
+								required
+								autoComplete="email"
+								value={email}
+								onChange={(e) => setEmail(e.target.value)}
+							/>
+						</FormField>
+						<FormField label="Contraseña actual" htmlFor="email-password">
+							<Input
+								id="email-password"
+								type="password"
+								required
+								autoComplete="current-password"
+								value={password}
+								onChange={(e) => setPassword(e.target.value)}
+							/>
+						</FormField>
+					</div>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="secondary"
+							onClick={() => onOpenChange(false)}
+						>
+							Cancelar
+						</Button>
+						<Button
+							type="submit"
+							disabled={change.isPending || !email.trim() || !password}
+						>
+							{change.isPending ? 'Enviando…' : 'Enviar el enlace'}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
 	)
 }
 

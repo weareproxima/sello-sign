@@ -23,6 +23,16 @@ describe('the old addresses', () => {
 		expect(movedTarget(at('/invite/tok'), API)).toBe('/')
 	})
 
+	it('send «Su cuenta» of a space to the one outside any', () => {
+		expect(movedTarget(at('/w/1/account'), API)).toBe('/account')
+		expect(movedTarget(at('/w/1/account/'), API)).toBe('/account')
+		expect(movedTarget(at('/w/1/account?email=changed'), API)).toBe(
+			'/account?email=changed'
+		)
+		expect(movedTarget(at('/w/1/accounts'), API)).toBeNull()
+		expect(movedTarget(at('/w/1/account/x'), API)).toBeNull()
+	})
+
 	it('send the specification to the API', () => {
 		expect(movedTarget(at('/api/openapi'), API)).toBe(
 			'https://api.sign.sello.tax/openapi.yaml'
@@ -38,6 +48,8 @@ describe('the old addresses', () => {
 			'/forgot-password',
 			'/reset-password?token=x',
 			'/w/1/settings',
+			'/account',
+			'/account?redirect=%2Fw%2F1',
 			'/registered',
 			'/api/sign/me',
 		])

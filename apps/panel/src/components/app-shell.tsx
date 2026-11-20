@@ -1,5 +1,10 @@
 import * as React from 'react'
-import { Link, useNavigate, useRouter } from '@tanstack/react-router'
+import {
+	Link,
+	useNavigate,
+	useRouter,
+	useRouterState,
+} from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import {
 	BuildingIcon,
@@ -206,15 +211,15 @@ function WorkspaceSwitcher({
 function AccountMenu({
 	name,
 	email,
-	workspaceId,
 	onNavigate,
 }: {
 	name: string
 	email: string
-	workspaceId: string
 	onNavigate?: () => void
 }) {
 	const navigate = useNavigate()
+	// «Volver» on «Su cuenta» comes back here.
+	const here = useRouterState({ select: (s) => s.location.href })
 	const router = useRouter()
 	const queryClient = useQueryClient()
 	const [theme, setTheme] = React.useState<Theme>('system')
@@ -282,10 +287,7 @@ function AccountMenu({
 				<DropdownMenuItem
 					onClick={() => {
 						onNavigate?.()
-						void navigate({
-							to: '/w/$workspaceId/account',
-							params: { workspaceId },
-						})
+						void navigate({ to: '/account', search: { redirect: here } })
 					}}
 				>
 					<UserIcon />
@@ -341,7 +343,6 @@ export function AppShell({
 			<AccountMenu
 				name={user.name}
 				email={user.email}
-				workspaceId={workspaceId}
 				onNavigate={onNavigate}
 			/>
 		</div>

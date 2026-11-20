@@ -1,7 +1,7 @@
 import { escapeHtml } from './email'
 
 /**
- * The account e-mails better-auth sends (password reset, e-mail check): a
+ * The account e-mails (the password reset, the change of e-mail): a
  * paragraph, a button to `url` and the address written out, for clients that
  * hide buttons. Written colours, because no mail client reads the tokens'
  * variables (`lint:design` leaves `*-email.ts` out).
@@ -43,5 +43,31 @@ export function resetPasswordEmail(url: string) {
 		action: 'Elegir una contraseña nueva',
 		url,
 		outro: 'Si no la solicitó, ignore este correo: su contraseña no cambia.',
+	})
+}
+
+/** The link that changes the account's e-mail, sent to the new address
+ * (`lib/account-email-change.ts`). */
+export function changeEmailEmail(url: string) {
+	return actionEmail({
+		subject: 'Confirmar su nuevo correo de Sello Sign',
+		intro:
+			'Pidió usar este correo en su cuenta de Sello Sign. Confírmelo para terminar el cambio. El enlace vence en una hora.',
+		action: 'Confirmar el correo',
+		url,
+		outro:
+			'Si no lo pidió, ignore este correo: su cuenta de Sello Sign no cambia.',
+	})
+}
+
+/** The notice to the current address that someone asked to change it. */
+export function emailChangeNoticeEmail(newEmail: string, accountUrl: string) {
+	return actionEmail({
+		subject: 'Cambio de correo en su cuenta de Sello Sign',
+		intro: `Se pidió cambiar el correo de su cuenta de Sello Sign a ${newEmail}. El cambio se hace cuando se abra el enlace que enviamos a esa dirección; hasta entonces, su cuenta sigue con este correo.`,
+		action: 'Revisar su cuenta',
+		url: accountUrl,
+		outro:
+			'Si no fue usted, cambie su contraseña y cierre las demás sesiones en «Su cuenta».',
 	})
 }

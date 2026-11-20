@@ -5,8 +5,9 @@ import { Button } from '#/components/ui/button'
 import { Card } from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
 import { CountrySelect } from '#/components/country-select'
-import { FormError, FormField, Page, PageHeader } from '#/components/page'
-import { api, errorMessage } from '#/lib/api'
+import { ActionError } from '#/components/limit-alert'
+import { FormField, Page, PageHeader } from '#/components/page'
+import { api } from '#/lib/api'
 import { taxIdLabel } from '#/lib/countries'
 import { useWorkspace } from '#/lib/workspace'
 
@@ -61,13 +62,7 @@ function NewOrganization() {
 						create.mutate()
 					}}
 				>
-					<FormError
-						message={
-							create.error
-								? errorMessage(create.error, 'crear la organización')
-								: null
-						}
-					/>
+					<ActionError error={create.error} action="crear la organización" />
 					<FormField label="Nombre" htmlFor="name">
 						<Input
 							id="name"

@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ApiError, createApi, errorMessage, expiryOf, tokenCache } from './api'
+import {
+	ApiError,
+	createApi,
+	errorMessage,
+	expiryOf,
+	problemOf,
+	retryAfterOf,
+	tokenCache,
+} from './api'
 
 function jwt(payload: Record<string, unknown>) {
 	const part = (o: unknown) =>
@@ -102,6 +110,89 @@ describe('createApi', () => {
 		expect(error).toBeInstanceOf(ApiError)
 		expect((error as ApiError).status).toBe(409)
 		expect((error as ApiError).type).toBe('delegation-locked')
+	})
+
+	it('keeps what a limit says and Retry-After', async () => {
+		const fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						type: 'rate-limited',
+						title: 'Too Many Requests',
+						status: 429,
+						detail: 'x',
+						limit: 60,
+						applies_to: 'workspace',
+					}),
+					{
+						status: 429,
+						headers: {
+							'content-type': 'application/problem+json',
+							'retry-after': '12',
+						},
+					}
+				)
+		)
+		const api = createApi({ base: '/api/sign', fetch, token: async () => 'T' })
+		const error = (await api
+			.sign('w', 'o', 'test', '{}', 'application/json')
+			.catch((e: unknown) => e)) as ApiError
+		expect(error.retryAfter).toBe(12)
+		expect(error.problem).toMatchObject({ limit: 60, applies_to: 'workspace' })
+		expect(errorMessage(error, 'firmar el documento')).toBe(
+			'Alcanzó el límite de 60 firmas por minuto del espacio. Vuelva a intentarlo en 12 segundos.'
+		)
+	})
+
+	it('sends the limits a space and a key set', async () => {
+		const fetch = fakeFetch(200, {})
+		const api = createApi({ base: '/api/sign', fetch, token: async () => 'T' })
+		await api.updateWorkspace('w', { requests_per_minute: null })
+		expect(JSON.parse(String(fetch.mock.calls[0]![1]!.body))).toEqual({
+			requests_per_minute: null,
+		})
+		await api.createApiKey('w', {
+			name: 'ERP',
+			environment: 'prod',
+			scopes: ['sign'],
+			requests_per_minute: 30,
+		})
+		expect(
+			JSON.parse(String(fetch.mock.calls[1]![1]!.body)).requests_per_minute
+		).toBe(30)
+	})
+})
+
+describe('problemOf and retryAfterOf', () => {
+	it('keeps only the known fields of a limit', () => {
+		expect(
+			problemOf(
+				{
+					type: 'monthly-limit-reached',
+					status: 429,
+					limit: 500,
+					environment: 'prod',
+					resets_at: '2026-12-01T00:00:00Z',
+					applies_to: 'nobody' as never,
+				},
+				429
+			)
+		).toEqual({
+			type: 'monthly-limit-reached',
+			title: '',
+			status: 429,
+			detail: undefined,
+			limit: 500,
+			environment: 'prod',
+			resets_at: '2026-12-01T00:00:00Z',
+		})
+	})
+
+	it('reads seconds, and nothing else', () => {
+		expect(retryAfterOf('30')).toBe(30)
+		expect(retryAfterOf(' 5 ')).toBe(5)
+		expect(retryAfterOf('Wed, 21 Oct 2026 07:28:00 GMT')).toBeNull()
+		expect(retryAfterOf(null)).toBeNull()
 	})
 })
 

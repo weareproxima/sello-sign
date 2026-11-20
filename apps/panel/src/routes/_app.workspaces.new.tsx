@@ -42,14 +42,24 @@ function NewWorkspace() {
 			<div className="w-full max-w-xl space-y-8">
 				<div className="flex items-center justify-between">
 					<Logo />
-					{hasSpaces ? (
+					<div className="flex items-center gap-4">
+						{/* Also for someone in no space: their account, and deleting it. */}
 						<Link
-							to="/"
+							to="/account"
+							search={{ redirect: '/workspaces/new' }}
 							className="text-ui text-muted-foreground transition-colors duration-fast hover:text-foreground"
 						>
-							Cancelar
+							Su cuenta
 						</Link>
-					) : null}
+						{hasSpaces ? (
+							<Link
+								to="/"
+								className="text-ui text-muted-foreground transition-colors duration-fast hover:text-foreground"
+							>
+								Cancelar
+							</Link>
+						) : null}
+					</div>
 				</div>
 				{config.cloud ? (
 					<CloudPicker

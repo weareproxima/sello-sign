@@ -11,6 +11,7 @@ import {
 } from '#/components/ui/card'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Empty } from '#/components/empty'
+import { ActionError } from '#/components/limit-alert'
 import { Skeleton } from '#/components/ui/skeleton'
 import {
 	CountryCode,
@@ -97,13 +98,7 @@ function Claim() {
 						que se ve en cada una y que solo Sello quita.
 					</CardDescription>
 				</CardHeader>
-				<FormError
-					message={
-						claim.error
-							? errorMessage(claim.error, 'traer las organizaciones')
-							: null
-					}
-				/>
+				<ActionError error={claim.error} action="traer las organizaciones" />
 				{claimable.isPending ? (
 					<Skeleton className="h-32" />
 				) : claimable.error ? (

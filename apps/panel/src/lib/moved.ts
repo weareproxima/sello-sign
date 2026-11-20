@@ -7,7 +7,8 @@
  * space (`/settings/…`, `/issuers/…`) go to `/`, which opens the last space.
  *
  * `/forgot-password`, `/reset-password` and `/workspaces/new` kept their
- * address: they aren't here.
+ * address: they aren't here. The pages of this panel that moved are
+ * below (`ACCOUNT_IN_A_SPACE`).
  */
 const MOVED: ReadonlyArray<readonly [from: string, to: string]> = [
 	['/register', '/sign-up'],
@@ -19,6 +20,10 @@ const MOVED: ReadonlyArray<readonly [from: string, to: string]> = [
 	['/invite', '/'],
 	['/switch-workspace', '/'],
 ]
+
+/** «Su cuenta» hung from a space (`/w/<id>/account`) until 2026-11-20; it
+ * lives at `/account`, outside any space. */
+const ACCOUNT_IN_A_SPACE = /^\/w\/[^/]+\/account$/
 
 /** Whether `pathname` is `prefix` or under it (`/login/two-factor`). */
 function under(pathname: string, prefix: string): boolean {
@@ -33,6 +38,7 @@ function under(pathname: string, prefix: string): boolean {
 export function movedTarget(url: URL, apiUrl: string): string | null {
 	const path = url.pathname.replace(/\/+$/, '') || '/'
 	if (path === '/api/openapi') return `${apiUrl}/openapi.yaml`
+	if (ACCOUNT_IN_A_SPACE.test(path)) return `/account${url.search}`
 	for (const [from, to] of MOVED) {
 		if (under(path, from)) return `${to}${url.search}`
 	}

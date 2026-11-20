@@ -51,8 +51,8 @@ encuentro: se extienden sin romper a quien los usa.
 ## Fase 2: después
 
 - El servidor MCP (las herramientas de `../sign-old/docs/api.md`): hecho en
-  el API el 2026-11-20 («API»). Falta que el panel lo enseñe (cómo
-  conectarlo con una clave) y que el landing de Sello lo cuente.
+  el API y, cómo conectarlo con una clave, en el panel el 2026-11-20 («API»
+  y «Panel»). Falta que el landing de Sello lo cuente.
 - Los avisos y las tareas programadas: certificados por vencer, el uso del
   plan, el reporte de uso a billing cada hora.
 - La bitácora de auditoría. (Las invitaciones por correo, el cambio de rol
@@ -60,13 +60,14 @@ encuentro: se extienden sin romper a quien los usa.
   verificar una firma por el API desde el panel, exportar los datos de un
   espacio y borrar la cuenta en una instalación propia, hechos el
   2026-11-20: «API» y «Panel».)
-- Borrar un espacio (`DELETE /workspaces/{w}`): hoy solo se borra el de
-  quien borra su cuenta y es su único miembro.
+- Borrar un espacio (`DELETE /workspaces/{w}`), «Su cuenta» fuera de un
+  espacio (`/account`) y cambiar el correo de la cuenta en una instalación
+  propia: hechos el 2026-11-20 («API» y «Panel»).
 - Guardar las firmas (`store_signatures`) en un almacén S3.
 - Los límites por plan y por minuto, y la retención del registro de firmas:
-  hechos en el API el 2026-11-20 («API»). Falta que el panel muestre sus
-  errores y deje poner los límites propios (los del espacio y los de cada
-  clave).
+  hechos en el API el 2026-11-20 («API»), y en el panel el mismo día (sus
+  errores, los límites del plan junto al uso y los límites propios del
+  espacio y de cada clave: «Panel»).
 - Copiar los datos de `../sign-old` (los certificados, sobre todo: la
   plataforma no los guarda), si se decide copiarlos.
 - El cambio en la plataforma de Sello: `X-Organization-Id`, el id de la
@@ -296,8 +297,9 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   API). Correo y contraseña, con el restablecimiento, cuyo correo sale por
   Resend (`src/lib/email.ts`, con `RESEND_API_KEY` y `EMAIL_FROM`, en la nube
   de `@sign.sello.tax`; sin la clave, por la consola del servidor) con la
-  plantilla de `src/lib/account-email.ts`; better-auth no verifica el correo,
-  así que no hay correo de verificación. Un proveedor
+  plantilla de `src/lib/account-email.ts`; better-auth no verifica el correo
+  al crear la cuenta ni al entrar: solo manda un enlace al cambiarlo («La
+  cuenta», abajo). Un proveedor
   OIDC opcional con `genericOAuth` (`OIDC_ISSUER`, `OIDC_CLIENT_ID`,
   `OIDC_CLIENT_SECRET`; `OIDC_ONLY` deja solo «Continuar con …» y apaga el
   registro); con `CLOUD=true` pide también el alcance `workspaces`, y en cada
@@ -348,14 +350,51 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   (`resendInvitation` de `server/invitations.ts`, `resendAndSend` de
   `lib/invitations.ts`); el diálogo dice que el enlace anterior ya no
   funciona y lo da para copiarlo, como al invitar.
-- **La cuenta** («Su cuenta», en el menú de la cuenta; `/w/<id>/account`):
-  el nombre, la contraseña (pide la actual y puede cerrar las demás
-  sesiones; si la cuenta solo entra con el proveedor OIDC, lo dice) y las
-  sesiones activas, con cerrar una o las demás, todo con better-auth. Con
-  `OIDC_ONLY` el nombre y el correo se ven y no se cambian (el proveedor los
-  reescribe en cada inicio de sesión) y no hay contraseña: lo dice, y con
-  `CLOUD=true` enlaza a «Datos personales» y «Seguridad» del centro de cuenta
-  de Sello (`/u/0/sign/profile` y `/u/0/sign/security`, con `?redirect=`).
+- **La cuenta** («Su cuenta», `/account`, fuera de cualquier espacio desde
+  el 2026-11-20, para que también llegue quien no está en ninguno): se abre
+  desde el menú de la cuenta de cada espacio (con `?redirect=` a la página
+  de la que viene, que es adonde vuelve «Volver») y desde «Crear un
+  espacio»/«Elija su organización», y lleva «Cerrar sesión». La dirección
+  de antes, `/w/<id>/account`, responde `308` a `/account`
+  (`lib/moved.ts`). El nombre, la contraseña (pide la actual y puede cerrar
+  las demás sesiones; si la cuenta solo entra con el proveedor OIDC, lo
+  dice) y las sesiones activas, con cerrar una o las demás, todo con
+  better-auth. Con `OIDC_ONLY` el nombre y el correo se ven y no se cambian
+  (el proveedor los reescribe en cada inicio de sesión) y no hay contraseña:
+  lo dice, y con `CLOUD=true` enlaza a «Datos personales» y «Seguridad» del
+  centro de cuenta de Sello (`/u/0/sign/profile` y `/u/0/sign/security`,
+  con `?redirect=`); en la nube el correo es siempre el de la cuenta de
+  Sello, y enlaza ahí.
+- **Cambiar el correo** (2026-11-20, solo en una instalación propia y sin
+  `OIDC_ONLY`, `emailChange` de la configuración pública; no a una cuenta
+  que entra con el proveedor, que reescribe su correo en cada inicio de
+  sesión): «Cambiar el correo» pide el nuevo y la contraseña actual. Lo
+  hace el servidor del panel (`requestEmailChange` de `server/account.ts`,
+  `lib/account-email-change.ts`): verifica la contraseña, pide a
+  better-auth su cambio de correo (`changeEmail`), que manda al correo
+  nuevo un enlace de una hora (`changeEmailEmail` de
+  `lib/account-email.ts`, por `lib/email.ts`), y avisa al actual
+  (`emailChangeNoticeEmail`). El correo cambia al abrir el enlace
+  (`/api/auth/verify-email` de better-auth, que lo da por verificado y
+  vuelve a `/account?email=changed`, o con `&error=` si venció, no vale o es
+  de otra cuenta); entonces la página pide un token nuevo y llama a
+  `GET /me`, así que el API guarda el correo nuevo en `users` al momento.
+  `/change-email` y `/send-verification-email` de better-auth están
+  apagados por HTTP (`disabledPaths`), para que nada cambie el correo sin la
+  contraseña, y no se manda ningún correo de verificación al crear la
+  cuenta ni al entrar. Si el correo nuevo ya es de otra cuenta, better-auth
+  responde igual y no manda nada, para no decir qué correos existen. Las
+  invitaciones que esperan siguen siendo para el correo al que se mandaron.
+- **Borrar el espacio** (2026-11-20, `components/delete-workspace.tsx`, al
+  final de «General», solo para sus propietarios): «¿Borrar el espacio?»,
+  con «Esta acción no se puede deshacer.», lo que se borra, «Exportar los
+  datos» ahí mismo y el nombre del espacio escrito para confirmarlo
+  (`DELETE /workspaces/{w}` con `confirmation`). Si otro espacio usa una de
+  sus organizaciones, lo dice con el enlace a «Organizaciones». Al
+  borrarlo, vuelve a la entrada, que abre otro de sus espacios, o a «Crear
+  un espacio» si no le queda ninguno. En el espacio de una organización de
+  Sello (la nube) no se ofrece: dice que se cierra cuando la organización
+  se elimina en Sello.
 - **Borrar la cuenta** (2026-11-20, solo en una instalación propia: no con
   `CLOUD`, donde se pide por correo, ni con `OIDC_ONLY`, donde el proveedor
   la volvería a crear; `accountDeletion` de la configuración pública): al
@@ -388,6 +427,47 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   el espacio, «Exportar los datos» descarga el JSON de
   `GET /workspaces/{w}/export` (`lib/download.ts`; el proxy de `/api/sign`
   pasa también `Content-Disposition`).
+- **Conectar un agente por MCP** (2026-11-20): en «Claves de API», debajo
+  de la lista, cómo conectar el servidor MCP del API con una clave del
+  espacio (`components/mcp-connect.tsx`, `lib/mcp.ts`): la dirección
+  (`<API_URL>/mcp`; el panel da `API_URL` a sus páginas en
+  `PublicConfig.apiUrl`), la cabecera `X-API-Key` (o
+  `Authorization: Bearer`), el comando de Claude Code
+  (`claude mcp add --transport http sello-sign …`) y el JSON `mcpServers`
+  de los demás clientes, para copiar, y qué herramientas ve un agente según
+  los permisos de la clave, sin subir certificados ni crear claves. La
+  página nunca muestra una clave: lleva `sign_test_…`; solo el diálogo de
+  la clave recién creada, que ya la muestra una vez, da el comando con
+  ella. `lib/mcp.test.ts` compara las herramientas y sus scopes con las que
+  registra `apps/api/internal/httpapi/mcp.go` (y `model.go`), así que una
+  herramienta nueva en el API rompe esa prueba hasta que el panel la
+  nombre.
+- **Los límites del plan** (2026-11-20; `lib/limits.ts`, con la semántica
+  de `apps/api/internal/httpapi/limits.go`): en el resumen, las firmas del
+  mes de cada ambiente dicen su cuota y, si el tope es otro (el excedente
+  de un plan de pago, el margen de prueba), «con tope de …», y pasan a
+  `text-bad` al alcanzarlo; debajo, «Límites del plan»
+  (`components/plan-limits.tsx`): las firmas por minuto (el techo del plan
+  o el que se puso el espacio), las organizaciones propias, los miembros y
+  los días del registro, con «Cambiar el plan» en la nube para quien
+  administra. En «General», «Firmas por minuto»
+  (`components/signing-rate.tsx`): quien administra (`owner`, `admin`,
+  como pide el `PATCH`) pone un límite del espacio por debajo del techo o
+  lo quita (`null`); el campo solo deja entrar dígitos, dice su error al
+  salir y el `400` del API (un techo que bajó) va bajo el campo, y la
+  página vuelve a leer el techo. Al crear una clave, «Firmas por minuto»
+  opcional, y la lista de claves dice el de cada una («Las del espacio»
+  sin el suyo). Los `429` (`rate-limited`, `monthly-limit-reached`) y el
+  `409 organization-limit-reached` se dicen con el molde «Alcanzó el
+  límite de…» (`limitMessage`, desde `errorMessage`): de quién es el límite
+  por minuto y en cuántos segundos volver a intentarlo (`Retry-After`, que
+  `ApiError.retryAfter` conserva), o el ambiente y el día, en UTC, en que
+  la cuenta del mes empieza de nuevo; `ActionError`
+  (`components/limit-alert.tsx`) añade, en la nube y para quien administra,
+  «Cambiar el plan» («Su cuenta › Sello Sign › Plan y facturación»,
+  `planPageUrl`). Lo usan firmar de prueba, verificar (el API no limita
+  `POST /verifications` hoy: queda por si lo hace), crear una organización
+  y traer las de Sello.
 - **En el móvil**, las tablas largas (registro de firmas, organizaciones,
   certificados, delegaciones, claves y la actividad del resumen) son una
   tarjeta por fila (`src/styles/cards.css` y `TableCards`, con `data-label`
@@ -418,6 +498,32 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   cuenta: bloqueada por ser la única propietaria de un espacio con otros, y
   la de otra persona, que borró su espacio solitario, salió del otro y ya no
   pudo iniciar sesión; de día, de noche y en el móvil.
+  El MCP y los límites (2026-11-20), igual, contra un API construido del
+  `HEAD` en el `:4444` con su propia base y los límites de la consola
+  (`api workspace limits`): el resumen con la cuota, el tope y «Límites del
+  plan»; poner, quitar y volver a poner el límite del espacio, uno por
+  encima del techo (en el navegador) y el `400` del API tras bajar el techo
+  con la consola; firmar de prueba hasta el `429 rate-limited` del espacio
+  y hasta el `429 monthly-limit-reached` de prueba; crear una clave con su
+  límite, verla en la lista y en el diálogo con su comando, y usar ese
+  comando tal cual contra `/mcp` (`initialize`, `tools/list` con las
+  herramientas de sus permisos, `sign_document` hasta el `429` de la
+  clave); y, con el panel en `CLOUD=true` y la organización de Sello
+  puesta a mano en la base, «Cambiar el plan» en el error y en el resumen;
+  de día, de noche y en el móvil.
+  «Su cuenta» fuera de un espacio, cambiar el correo y borrar un espacio
+  (2026-11-20), con el panel en `vite dev` en el `:4446` y un API en el
+  `:4447` contra su propia base, en un navegador: llegar a «Su cuenta» sin
+  ningún espacio (desde «Crear un espacio»), el `308` de
+  `/w/<id>/account`, el menú de la cuenta y «Volver»; pedir el cambio con
+  otra contraseña y con la buena (los dos correos por la consola), que
+  `/api/auth/change-email` responda `404`, abrir el enlace (el correo
+  cambia en better-auth, verificado, y en `users` del API al volver) y el
+  enlace vencido; borrar un espacio con una organización delegada a otro
+  (el `409` con su enlace), sin ella (la clave deja de valer y la página
+  abre el otro espacio), exportar desde el diálogo, borrar el último
+  (vuelve a «Crear un espacio») y borrar la cuenta desde `/account` sin
+  espacios; de día, de noche, a 390 y a 360 px.
 - **Sin probar:** El Salvador (su firmador todavía no estaba en el API:
   `country-not-implemented`), el OIDC contra un proveedor real, la nube
   (`/me/sello-organizations`, abrir el espacio de una organización de Sello y
@@ -425,11 +531,17 @@ base-ui vienen del registro público de shadcn de Sello (`@sello`, en
   (solo la consola), la cuenta con `OIDC_ONLY` en un navegador (solo el
   typecheck) y el verificador con El Salvador, Guatemala, Panamá y República
   Dominicana desde el panel (se probó Costa Rica, válida y alterada; los
-  demás se prueban en `../sign-old`).
-- **Falta:** cambiar el correo de la cuenta, una dirección de la cuenta
-  fuera de un espacio (hoy cuelga de `/w/<id>/`; quien no está en ningún
-  espacio no llega a «Su cuenta» ni puede borrarla desde el panel) y borrar
-  un espacio por sí solo.
+  demás se prueban en `../sign-old`). De los límites, sin probar en un
+  navegador: los de un plan de la nube que empuja billing (el nombre del
+  plan, el tope del excedente), `organization-limit-reached` (solo su
+  prueba) y «Cambiar el plan» contra el centro de cuenta de verdad; del
+  MCP, `claude mcp add` con el cliente de Claude Code (se probó el mismo
+  pedido con `curl`). Del correo y del espacio, sin probar en un navegador:
+  «Su cuenta» con `CLOUD` u `OIDC_ONLY` y una cuenta enlazada al proveedor
+  (solo el typecheck y las pruebas de `account-email-change.ts`), el correo
+  de verificación por Resend y el bloque de un espacio de una organización
+  de Sello.
+- **Falta:** lo que queda en «Fase 2».
 
 Cómo se levanta y sus variables, en `apps/panel/README.md` y
 `apps/panel/.env.example`: `DATABASE_URL`, `BETTER_AUTH_SECRET`,
@@ -576,7 +688,61 @@ con las del contrato).
   queda hasta que el espacio lo borre o venza. Se decidió borrar los
   espacios de los que es el único miembro, y no dejarlos, porque nadie
   podría administrarlos y sus claves seguirían firmando, y no borrar nunca
-  uno con otros miembros.
+  uno con otros miembros. Lo que se borra con cada espacio es lo mismo que
+  con `DELETE /workspaces/{w}` (`store.deleteSpaces`, abajo).
+- **Borrar un espacio** (2026-11-20, sin migración):
+  `DELETE /workspaces/{w}` (`deleteWorkspace` de `workspaces.go`,
+  `store.DeleteWorkspace` de `store/deletion.go`). Decidido al hacerlo:
+  - **Quién:** solo un `owner`, con el token (una clave, aunque tenga todos
+    los scopes, `403`; el MCP no lo tiene). Un `admin` administra el
+    espacio, pero borrarlo es del dueño.
+  - **La confirmación:** el cuerpo lleva `confirmation`, el nombre del
+    espacio tal como está (sin los blancos de los lados), como GitHub; se
+    compara con el nombre bajo el bloqueo de la fila, así que un cambio de
+    nombre a la vez también lo para (`400 confirmation-mismatch`). Se
+    eligió el nombre y no el id porque es lo que la persona reconoce y
+    escribe, y no un encabezado aparte porque el proxy del panel solo pasa
+    los del contrato.
+  - **Nunca:** el espacio de la plataforma (`SIGN_PLATFORM_WORKSPACE_ID`,
+    `409 platform-workspace`) ni, en la nube, el de una organización del
+    IdP (`sello_workspace_id`, `409 workspace-managed-by-sello`): su plan lo
+    cobra billing y sus miembros los empuja, y se cierra cuando Sello
+    elimina la organización (`../sello/docs/sello-sign.md` y
+    `../sello/apps/api/DEPLOY.md` §10.13 no prevén que Sign lo borre por su
+    cuenta: billing seguiría cobrando el plan, y abrirlo otra vez lo
+    crearía vacío). Así que en la nube solo se borra uno sin organización
+    del IdP que haya creado la consola, y en una instalación propia,
+    cualquiera.
+  - **El uso:** billing solo recibe el de los espacios de una organización
+    del IdP (`store.UsageReport`), que no se borran, así que borrar nunca
+    pierde un uso que no se le haya reportado. El del espacio borrado se va
+    con él (`usage_counters` y `workspace_usage` caen en cascada), y no
+    hace falta guardarlo: nadie lo cobra.
+  - **Las delegaciones:** mientras otro espacio use una de sus
+    organizaciones, `409 workspace-has-delegations` y no cambia nada, como
+    `organization-has-delegations` al borrar una organización y `delegated`
+    al borrar la cuenta. Antes de comprobarlo, las organizaciones de las que
+    la plataforma tiene la delegación `locked` vuelven a su espacio
+    (`returnToPlatform`, lo mismo que al cerrar un espacio), como dice
+    `../sello/docs/sello-sign.md` («Al cerrar el espacio…»), con sus
+    certificados y su historial; las demás se borran. Las delegaciones que
+    otros espacios le dieron se van con él.
+  - **Lo que se borra** (`store.deleteSpaces`, que comparte con
+    `DELETE /me`), en una transacción que bloquea el espacio y sus
+    organizaciones (una delegación, una clave o un certificado nuevos
+    esperan): sus organizaciones con sus certificados (el material cifrado
+    y sus datos) y las claves de una sola de ellas, también las de otro
+    espacio; con el espacio, sus miembros, sus asientos de billing, las
+    delegaciones que recibió, sus claves, sus invitaciones (también las
+    aceptadas y revocadas), su registro de firmas y su uso. Las claves que
+    tenían valor salen de la caché de Valkey al momento (también las de
+    otro espacio de una de sus organizaciones, que antes no se sacaban al
+    borrar la cuenta) y el material descifrado de sus certificados se
+    olvida en este proceso. En las demás instancias, el material que
+    tuvieran en memoria dura hasta 10 minutos y, sin Valkey, una clave en
+    su caché hasta 5, pero ya no hay espacio, organización ni certificado
+    con que firmar. Lo que otros espacios firmaron con sus organizaciones se queda
+    en su registro (con `organization_name` `null`) y en su uso.
 - **La retención del registro:** cada entrada de `signing_log` se guarda los
   días de `retention_days` del espacio que firmó (en la nube, los del plan:
   7, 30, 90, 180 y 365 días de Free a Business, sin plazo en Enterprise; en
@@ -665,12 +831,17 @@ con las del contrato).
   una clave con otro ambiente, que no se registra), la exportación (sin
   hash, token ni clave; con más de un lote del registro; una organización
   delegada) y borrar la cuenta (cada desenlace, lo que bloquea y lo que se
-  borra, la clave que deja de valer al momento, y la nube). Con `VALKEY_TEST_URL`, el límite por
+  borra, la clave que deja de valer al momento, y la nube), y borrar un
+  espacio (`deletion_test.go`: quién puede, la confirmación, el `409` con
+  una delegación y que no cambie nada, lo que queda en cada tabla, la
+  clave propia y la de otro espacio que dejan de valer al momento, el
+  registro y el uso del otro espacio que se quedan, el espacio de la
+  plataforma, el de una organización de Sello y, en la nube, la
+  organización que vuelve a la plataforma con su certificado). Con `VALKEY_TEST_URL`, el límite por
   minuto contra Valkey. Además, a mano, firmar y verificar un DTE
   con el firmador de El Salvador y un certificado de
   `../sello/apps/api/tools/devcert`.
-- **Falta** (fase 2): los avisos, la bitácora de auditoría y borrar un
-  espacio por sí solo.
+- **Falta** (fase 2): los avisos y la bitácora de auditoría.
 
 **En local**, desde `apps/api`, con `podman compose up -d` en la raíz:
 

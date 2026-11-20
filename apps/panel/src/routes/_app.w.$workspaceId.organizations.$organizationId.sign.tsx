@@ -12,8 +12,9 @@ import {
 import { Textarea } from '#/components/ui/textarea'
 import { CopyButton } from '#/components/copy-button'
 import { EnvironmentPicker } from '#/components/environment-picker'
+import { ActionError } from '#/components/limit-alert'
 import { FormError, FormField, Mono } from '#/components/page'
-import { api, errorMessage, type Environment } from '#/lib/api'
+import { api, type Environment } from '#/lib/api'
 import { buttonVariants } from '#/lib/button-variants'
 import { documentFormat } from '#/lib/countries'
 import { checkDocument } from '#/lib/documents'
@@ -75,14 +76,13 @@ function SignTest() {
 					</CardDescription>
 				</CardHeader>
 				<form className="space-y-4" onSubmit={submit}>
-					<FormError
-						message={
-							invalid ??
-							(sign.error
-								? errorMessage(sign.error, 'firmar el documento')
-								: null)
-						}
-					/>
+					{invalid ? (
+						<FormError message={invalid} />
+					) : (
+						// The plan's limits (429) say whose and when; the month's,
+						// where to change the plan.
+						<ActionError error={sign.error} action="firmar el documento" />
+					)}
 					<FormField label="Ambiente">
 						<EnvironmentPicker value={environment} onChange={setEnvironment} />
 					</FormField>

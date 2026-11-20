@@ -20,20 +20,15 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { Textarea } from '#/components/ui/textarea'
 import { Empty } from '#/components/empty'
 import { EnvironmentPicker } from '#/components/environment-picker'
+import { ActionError } from '#/components/limit-alert'
 import {
 	CountryCode,
-	FormError,
 	FormField,
 	Mono,
 	Page,
 	PageHeader,
 } from '#/components/page'
-import {
-	api,
-	errorMessage,
-	type Environment,
-	type Organization,
-} from '#/lib/api'
+import { api, type Environment, type Organization } from '#/lib/api'
 import { countryName } from '#/lib/countries'
 import { ENVIRONMENT_LABELS, formatDate } from '#/lib/format'
 import { SEGMENT, SEGMENTED } from '#/lib/recipes'
@@ -210,13 +205,7 @@ function Verify() {
 							verify.mutate()
 						}}
 					>
-						<FormError
-							message={
-								verify.error
-									? errorMessage(verify.error, 'verificar la firma')
-									: null
-							}
-						/>
+						<ActionError error={verify.error} action="verificar la firma" />
 						{mode === 'api' && organization ? (
 							<>
 								<FormField

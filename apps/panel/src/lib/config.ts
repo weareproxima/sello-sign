@@ -6,6 +6,7 @@
  */
 
 import { accountDeletable } from './account-deletion'
+import { emailChangeAllowed } from './account-email-change'
 
 /** An external OpenID Connect provider to sign in with. */
 export type OidcConfig = {
@@ -97,6 +98,12 @@ export type PublicConfig = {
 	/** Whether a person may delete their account here: self-hosted, and not
 	 * with `OIDC_ONLY` (`lib/account-deletion.ts`). */
 	accountDeletion: boolean
+	/** Whether a person may change their e-mail here: self-hosted, and not
+	 * with `OIDC_ONLY` (`lib/account-email-change.ts`). */
+	emailChange: boolean
+	/** `API_URL`, the API's public origin: where its MCP server is
+	 * (`lib/mcp.ts`). */
+	apiUrl: string
 }
 
 export function publicConfig(config: PanelConfig): PublicConfig {
@@ -111,6 +118,8 @@ export function publicConfig(config: PanelConfig): PublicConfig {
 			: null,
 		accountCenter: config.cloud && config.oidc ? config.oidc.issuer : null,
 		accountDeletion: accountDeletable(config),
+		emailChange: emailChangeAllowed(config),
+		apiUrl: config.apiUrl,
 	}
 }
 

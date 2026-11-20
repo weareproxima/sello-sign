@@ -1,7 +1,8 @@
 import type { BetterAuthOptions } from 'better-auth'
 import { genericOAuth, jwt } from 'better-auth/plugins'
 import { PostgresDialect } from 'kysely'
-import { resetPasswordEmail } from './account-email'
+import { changeEmailEmail, resetPasswordEmail } from './account-email'
+import { emailChangeAllowed } from './account-email-change'
 import type { Database } from './database'
 import {
 	decodeJwtPayload,
@@ -157,7 +158,22 @@ export function authOptions({ config, database, sendEmail }: Deps) {
 				await sendEmail({ to: user.email, ...resetPasswordEmail(url) })
 			},
 		},
+		// The e-mail changes with a link to the new address, through the
+		// panel's server, which asks for the password first
+		// (`requestEmailChange` of `server/account.ts`): better-auth's own
+		// `/change-email` stays off over HTTP, like `/send-verification-email`,
+		// so verification e-mails go out only for a change. Nothing is sent at
+		// sign-up or sign-in.
+		emailVerification: {
+			sendOnSignUp: false,
+			sendOnSignIn: false,
+			sendVerificationEmail: async ({ user, url }) => {
+				await sendEmail({ to: user.email, ...changeEmailEmail(url) })
+			},
+		},
+		disabledPaths: ['/change-email', '/send-verification-email'],
 		user: {
+			changeEmail: { enabled: emailChangeAllowed(config) },
 			additionalFields: {
 				// The person at Sello (`sub` of its ID token) and their
 				// organizations there, as the last sign-in with Sello said. Only

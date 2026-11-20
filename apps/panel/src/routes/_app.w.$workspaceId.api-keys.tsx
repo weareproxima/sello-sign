@@ -31,6 +31,7 @@ import { TableCards } from '#/components/table-cards'
 import { Confirm } from '#/components/confirm'
 import { CopyButton } from '#/components/copy-button'
 import { EnvironmentPicker } from '#/components/environment-picker'
+import { McpConnect, Snippet } from '#/components/mcp-connect'
 import { FormError, FormField, Page, PageHeader } from '#/components/page'
 import {
 	API_KEY_SCOPES,
@@ -41,7 +42,9 @@ import {
 	type CreatedApiKey,
 	type Environment,
 } from '#/lib/api'
-import { ENVIRONMENT_LABELS, formatDate } from '#/lib/format'
+import { ENVIRONMENT_LABELS, formatDate, formatNumber } from '#/lib/format'
+import { effectiveRate, rateError, rateInput } from '#/lib/limits'
+import { claudeCodeCommand, mcpUrl } from '#/lib/mcp'
 import { notify } from '#/lib/notify'
 import { CODE_BLOCK } from '#/lib/recipes'
 import { API_KEY_SCOPE_LABELS } from '#/lib/scopes'
@@ -54,7 +57,19 @@ export const Route = createFileRoute('/_app/w/$workspaceId/api-keys')({
 
 function ApiKeys() {
 	const { workspaceId, canManage } = useWorkspace()
+	const { config } = Route.useRouteContext()
 	const queryClient = useQueryClient()
+	// The space's signatures a minute, for the form to say them.
+	const workspace = useQuery({
+		queryKey: ['workspace', workspaceId],
+		queryFn: () => api.workspace(workspaceId),
+	})
+	const spaceRate = workspace.data
+		? effectiveRate(
+				workspace.data.limits.requests_per_minute,
+				workspace.data.requests_per_minute
+			)
+		: null
 	const keys = useQuery({
 		queryKey: ['api-keys', workspaceId],
 		queryFn: () => api.apiKeys(workspaceId),
@@ -115,6 +130,7 @@ function ApiKeys() {
 									<TableHead>Ambiente</TableHead>
 									<TableHead>Alcance</TableHead>
 									<TableHead>Permisos</TableHead>
+									<TableHead>Firmas por minuto</TableHead>
 									<TableHead>Último uso</TableHead>
 									<TableHead>Creada</TableHead>
 									{canManage ? (
@@ -163,6 +179,18 @@ function ApiKeys() {
 													))}
 												</div>
 											</TableCell>
+											<TableCell
+												data-label="Firmas por minuto"
+												className="text-meta"
+											>
+												{key.requests_per_minute === null ? (
+													<span className="text-muted-foreground">
+														Las del espacio
+													</span>
+												) : (
+													formatNumber(key.requests_per_minute)
+												)}
+											</TableCell>
 											<TableCell data-label="Último uso" className="text-meta">
 												{key.last_used_at
 													? formatDate(key.last_used_at)
@@ -191,10 +219,13 @@ function ApiKeys() {
 				)}
 			</Card>
 
+			<McpConnect apiUrl={config.apiUrl} />
+
 			<CreateKey
 				open={creating}
 				onOpenChange={setCreating}
 				workspaceId={workspaceId}
+				spaceRate={spaceRate}
 				organizations={(organizations.data ?? []).map((o) => ({
 					id: o.id,
 					name: o.name,
@@ -207,7 +238,11 @@ function ApiKeys() {
 					setCreated(key)
 				}}
 			/>
-			<RevealKey created={created} onClose={() => setCreated(null)} />
+			<RevealKey
+				created={created}
+				apiUrl={config.apiUrl}
+				onClose={() => setCreated(null)}
+			/>
 			<Confirm
 				open={revoking !== null}
 				onOpenChange={(open) => !open && setRevoking(null)}
@@ -225,12 +260,15 @@ function CreateKey({
 	open,
 	onOpenChange,
 	workspaceId,
+	spaceRate,
 	organizations,
 	onCreated,
 }: {
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	workspaceId: string
+	/** The space's signatures a minute; `null` is none (or not read yet). */
+	spaceRate: number | null
 	organizations: { id: string; name: string }[]
 	onCreated: (key: CreatedApiKey) => Promise<void>
 }) {
@@ -238,6 +276,10 @@ function CreateKey({
 	const [environment, setEnvironment] = React.useState<Environment>('test')
 	const [organization, setOrganization] = React.useState('')
 	const [scopes, setScopes] = React.useState<ApiKeyScope[]>(['sign'])
+	// Its own signatures a minute: optional, on top of the space's.
+	const [rate, setRate] = React.useState('')
+	const [rateChecked, setRateChecked] = React.useState(false)
+	const rateProblem = rateChecked ? rateError(rate) : null
 	const create = useMutation({
 		mutationFn: () =>
 			api.createApiKey(workspaceId, {
@@ -245,12 +287,15 @@ function CreateKey({
 				environment,
 				scopes,
 				organization_id: organization || undefined,
+				requests_per_minute: rate ? Number(rate) : undefined,
 			}),
 		onSuccess: async (key) => {
 			await onCreated(key)
 			setName('')
 			setScopes(['sign'])
 			setOrganization('')
+			setRate('')
+			setRateChecked(false)
 		},
 	})
 
@@ -261,6 +306,8 @@ function CreateKey({
 					className="space-y-6"
 					onSubmit={(e) => {
 						e.preventDefault()
+						setRateChecked(true)
+						if (rateError(rate)) return
 						create.mutate()
 					}}
 				>
@@ -305,6 +352,32 @@ function CreateKey({
 								</NativeSelectOption>
 							))}
 						</NativeSelect>
+					</FormField>
+					<FormField
+						label="Firmas por minuto"
+						htmlFor="key-rate"
+						help={
+							rateProblem
+								? null
+								: `Opcional: un límite propio de la clave, además del del espacio${
+										spaceRate === null
+											? ''
+											: ` (${formatNumber(spaceRate)} por minuto)`
+									}, para que una integración no gaste las firmas de las demás.`
+						}
+						error={rateProblem}
+					>
+						<Input
+							id="key-rate"
+							inputMode="numeric"
+							autoComplete="off"
+							className="sm:max-w-48"
+							placeholder="Sin límite propio"
+							aria-invalid={rateProblem ? true : undefined}
+							value={rate}
+							onChange={(e) => setRate(rateInput(e.target.value))}
+							onBlur={() => rate && setRateChecked(true)}
+						/>
 					</FormField>
 					<fieldset className="space-y-3">
 						<legend className="mb-2 text-ui font-medium">Permisos</legend>
@@ -358,9 +431,11 @@ function CreateKey({
 /** The key, once: the API keeps only its hash. */
 function RevealKey({
 	created,
+	apiUrl,
 	onClose,
 }: {
 	created: CreatedApiKey | null
+	apiUrl: string
 	onClose: () => void
 }) {
 	return (
@@ -378,8 +453,19 @@ function RevealKey({
 					</AlertDescription>
 				</Alert>
 				<pre className={CODE_BLOCK}>{created?.key}</pre>
+				{created ? (
+					// The only place the whole key shows: so the command here
+					// carries it, and the page's carries its prefix.
+					<Snippet
+						title="Conectarla a Claude Code por MCP"
+						value={claudeCodeCommand(mcpUrl(apiUrl), created.key)}
+						label="Copiar el comando"
+					/>
+				) : null}
 				<DialogFooter>
-					{created ? <CopyButton value={created.key} size="sm" /> : null}
+					{created ? (
+						<CopyButton value={created.key} label="Copiar la clave" />
+					) : null}
 					<Button onClick={onClose}>Listo</Button>
 				</DialogFooter>
 			</DialogContent>

@@ -7,6 +7,8 @@
  * unchanged (`routes/api/sign/$.ts`).
  */
 
+import { limitMessage } from './limits'
+
 export type Environment = 'test' | 'prod'
 export type Role = 'owner' | 'admin' | 'member'
 
@@ -39,6 +41,9 @@ export type Workspace = Omit<WorkspaceSummary, 'role'> & {
 	sello_workspace_id: string | null
 	closed: boolean
 	limits: Limits
+	/** The signatures a minute the space set for itself, below
+	 * `limits.requests_per_minute`; `null` is the plan's. */
+	requests_per_minute: number | null
 	created_at: string
 }
 
@@ -168,6 +173,9 @@ export type ApiKey = {
 	scopes: ApiKeyScope[]
 	organization_id: string | null
 	prefix: string
+	/** The key's own signatures a minute, on top of the space's; `null` is
+	 * none. */
+	requests_per_minute: number | null
 	last_used_at: string | null
 	created_at: string
 }
@@ -227,17 +235,32 @@ export type Problem = {
 	title: string
 	status: number
 	detail?: string
+	/** In the plan's limits: the one reached. */
+	limit?: number
+	/** In `rate-limited`: whose limit it is. */
+	applies_to?: 'api_key' | 'workspace'
+	/** In `monthly-limit-reached`: the environment. */
+	environment?: Environment
+	/** In `monthly-limit-reached`: when it counts again (UTC). */
+	resets_at?: string
 }
 
 export class ApiError extends Error {
 	readonly status: number
 	readonly problem: Problem | null
+	/** `Retry-After`, in seconds, when the API sent it (the limits). */
+	readonly retryAfter: number | null
 
-	constructor(status: number, problem: Problem | null) {
+	constructor(
+		status: number,
+		problem: Problem | null,
+		retryAfter: number | null = null
+	) {
 		super(problem?.detail || problem?.title || `HTTP ${status}`)
 		this.name = 'ApiError'
 		this.status = status
 		this.problem = problem
+		this.retryAfter = retryAfter
 	}
 
 	/** The stable slug of the problem (`organization-not-found`…). */
@@ -341,16 +364,15 @@ export function createApi(transport: Transport) {
 			try {
 				const parsed = (await response.json()) as Partial<Problem>
 				if (parsed && typeof parsed === 'object' && 'type' in parsed)
-					problem = {
-						type: String(parsed.type),
-						title: String(parsed.title ?? ''),
-						status: Number(parsed.status ?? response.status),
-						detail: parsed.detail ? String(parsed.detail) : undefined,
-					}
+					problem = problemOf(parsed, response.status)
 			} catch {
 				problem = null
 			}
-			throw new ApiError(response.status, problem)
+			throw new ApiError(
+				response.status,
+				problem,
+				retryAfterOf(response.headers.get('retry-after'))
+			)
 		}
 		if (response.status === 204) return undefined as T
 		if (options.blob) return (await response.blob()) as T
@@ -378,7 +400,12 @@ export function createApi(transport: Transport) {
 		workspace: (id: string) => request<Workspace>(w(id)),
 		updateWorkspace: (
 			id: string,
-			body: { name?: string; default_country?: string }
+			body: {
+				name?: string
+				default_country?: string
+				/** The space's own signatures a minute; `null` is the plan's. */
+				requests_per_minute?: number | null
+			}
 		) => request<Workspace>(w(id), { method: 'PATCH', body }),
 		members: (id: string) =>
 			request<Member[] | { items: Member[] }>(`${w(id)}/members`).then(itemsOf),
@@ -416,6 +443,10 @@ export function createApi(transport: Transport) {
 		/** Everything of the space, as the JSON file the API makes. */
 		exportWorkspace: (id: string) =>
 			request<Blob>(`${w(id)}/export`, { blob: true }),
+		/** Deletes the space with everything in it (only an owner);
+		 * `confirmation` is its name, as it is. */
+		deleteWorkspace: (id: string, confirmation: string) =>
+			request<void>(w(id), { method: 'DELETE', body: { confirmation } }),
 		/** What deleting the account would do (self-hosted). */
 		accountDeletion: () => request<AccountDeletion>('/me/account-deletion'),
 		/** Deletes what the API keeps of the person (self-hosted), before the
@@ -563,6 +594,8 @@ export function createApi(transport: Transport) {
 				environment: Environment
 				scopes: ApiKeyScope[]
 				organization_id?: string
+				/** The key's own signatures a minute. */
+				requests_per_minute?: number
 			}
 		) =>
 			request<CreatedApiKey>(`${w(workspace)}/api-keys`, {
@@ -593,6 +626,29 @@ export function createApi(transport: Transport) {
 				`${w(workspace)}/signatures/${encodeURIComponent(id)}`
 			),
 	}
+}
+
+/** A problem+json body, keeping the fields of the plan's limits. */
+export function problemOf(parsed: Partial<Problem>, status: number): Problem {
+	const problem: Problem = {
+		type: String(parsed.type),
+		title: String(parsed.title ?? ''),
+		status: Number(parsed.status ?? status),
+		detail: parsed.detail ? String(parsed.detail) : undefined,
+	}
+	if (typeof parsed.limit === 'number') problem.limit = parsed.limit
+	if (parsed.applies_to === 'api_key' || parsed.applies_to === 'workspace')
+		problem.applies_to = parsed.applies_to
+	if (parsed.environment === 'test' || parsed.environment === 'prod')
+		problem.environment = parsed.environment
+	if (typeof parsed.resets_at === 'string') problem.resets_at = parsed.resets_at
+	return problem
+}
+
+/** `Retry-After` in seconds (the API sends seconds, never a date). */
+export function retryAfterOf(value: string | null): number | null {
+	if (!value || !/^\d+$/.test(value.trim())) return null
+	return Number(value.trim())
 }
 
 /** Lists come as an array or as a page; the pages want the array. */
@@ -626,6 +682,8 @@ export const clearToken = browserToken.clear
  */
 export function errorMessage(error: unknown, action: string): string {
 	if (error instanceof ApiError) {
+		const limit = limitMessage(error.problem, error.retryAfter)
+		if (limit) return limit
 		const known = error.type ? PROBLEMS[error.type] : undefined
 		if (known) return known
 		if (error.status === 401)
@@ -666,6 +724,13 @@ const PROBLEMS: Record<string, string> = {
 		'Antes de borrar la cuenta, resuelva los espacios que lo impiden.',
 	'not-self-hosted':
 		'En la nube de Sello Sign, la cuenta se borra escribiendo a Sello.',
+	'confirmation-mismatch':
+		'El nombre no coincide. Escríbalo tal como aparece en «General».',
+	'workspace-has-delegations':
+		'Otros espacios usan sus organizaciones por delegación. Quite esas delegaciones antes de borrarlo.',
+	'platform-workspace': 'El espacio de la plataforma de Sello no se borra.',
+	'workspace-managed-by-sello':
+		'Este espacio es el de su organización en Sello y no se borra desde Sello Sign.',
 	'organization-ambiguous':
 		'Ese NIT nombra más de una organización. Elija la organización por su nombre.',
 	'already-member': 'Esa persona ya es miembro del espacio.',

@@ -13,7 +13,9 @@ import { Input } from '#/components/ui/input'
 import { Skeleton } from '#/components/ui/skeleton'
 import { CopyButton } from '#/components/copy-button'
 import { CountrySelect } from '#/components/country-select'
+import { DeleteWorkspace } from '#/components/delete-workspace'
 import { FormError, FormField, Mono, Page, PageHeader } from '#/components/page'
+import { SigningRate } from '#/components/signing-rate'
 import { api, errorMessage, type Workspace } from '#/lib/api'
 import { exportFileName, saveFile } from '#/lib/download'
 import { notify } from '#/lib/notify'
@@ -129,7 +131,9 @@ function Details({ workspace }: { workspace: Workspace }) {
 					<CopyButton value={workspace.id} />
 				</div>
 			</Card>
+			<SigningRate workspace={workspace} />
 			{canManage ? <Export workspaceId={workspace.id} /> : null}
+			<DeleteWorkspace workspace={workspace} />
 		</>
 	)
 }

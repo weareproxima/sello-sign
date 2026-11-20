@@ -33,8 +33,9 @@ El API (`apps/api`) tiene que tener `PANEL_URL` igual a `BETTER_AUTH_URL` y
 
 ## El correo
 
-Todo lo que el panel envía (el restablecimiento de la contraseña, las
-invitaciones y «Hablar con ventas») sale por `src/lib/email.ts`: Resend con
+Todo lo que el panel envía (el restablecimiento de la contraseña, el enlace
+para cambiar el correo y el aviso al correo anterior, las invitaciones y
+«Hablar con ventas») sale por `src/lib/email.ts`: Resend con
 `RESEND_API_KEY`, desde `EMAIL_FROM` (en la nube, una dirección de
 `@sign.sello.tax`, ya verificada en Resend). Sin la clave, el correo se
 escribe en la consola del servidor, con su enlace. La plantilla de los
@@ -61,10 +62,19 @@ atrás, en [`docs/deploy.md`](../../docs/deploy.md).
 
 ## Dónde está cada cosa
 
-- `src/lib/config.ts`: las variables, sin secretos para las páginas.
+- `src/lib/config.ts`: las variables, sin secretos para las páginas (que
+  sí reciben `API_URL`: el origen público del API, donde está su servidor
+  MCP).
 - `src/lib/auth-options.ts` y `src/lib/auth.ts`: better-auth; `scripts/migrate.ts`.
 - `src/lib/api.ts`: el cliente del contrato (`contracts/`), con los errores
   dichos con los moldes de Sello.
+- `src/lib/limits.ts`: los límites del plan como los aplica el API (el tope
+  del mes, las firmas por minuto) y lo que dice el panel cuando uno detiene
+  una firma (`429`); `src/components/limit-alert.tsx`, el error con
+  «Cambiar el plan» en la nube.
+- `src/lib/mcp.ts`: cómo conectar un agente al servidor MCP del API («Claves
+  de API»); su prueba compara las herramientas con las de
+  `apps/api/internal/httpapi/mcp.go`.
 - `src/styles.css`: importa Tailwind y el tema de Sello, `src/styles/sello/`
   (los tokens, las piezas de CSS y su conexión con Tailwind).
 - `src/components/ui/`, `src/lib/utils.ts` y `src/lib/button-variants.ts`: las
@@ -72,13 +82,22 @@ atrás, en [`docs/deploy.md`](../../docs/deploy.md).
   shadcn (`@sello` en `components.json`) y no se editan aquí: se reinstalan
   con `bunx shadcn@latest add @sello/<nombre> --overwrite` (ver «Reglas» en
   `AGENTS.md`).
-- `src/routes/`: `_auth.*` (entrar), `_app.*` (con sesión), `_app.w.$workspaceId.*`
-  (un espacio, también «Su cuenta», `account`, y «Verificar una firma»,
-  `verify`).
+- `src/routes/`: `_auth.*` (entrar), `_app.*` (con sesión: también «Su
+  cuenta», `_app.account.tsx`, en `/account`, fuera de cualquier espacio),
+  `_app.w.$workspaceId.*` (un espacio, también «Verificar una firma»,
+  `verify`). `/w/<id>/account`, donde estaba «Su cuenta» hasta el
+  2026-11-20, responde `308` a `/account` (`src/lib/moved.ts`).
 - `src/server/`: lo que hace el servidor del panel con la sesión de la
   persona: invitar y reenviar una invitación con su correo
-  (`invitations.ts`) y borrar la cuenta en una instalación propia
-  (`account.ts`: primero `DELETE /me` en el API, después better-auth).
+  (`invitations.ts`), y en una instalación propia, borrar la cuenta
+  (`account.ts`: primero `DELETE /me` en el API, después better-auth) y
+  cambiar su correo (`requestEmailChange`, con la contraseña: better-auth
+  manda el enlace al correo nuevo y se avisa al anterior;
+  `src/lib/account-email-change.ts`). `/change-email`,
+  `/send-verification-email` y `/delete-user` de better-auth están apagados
+  por HTTP, para que nada pase por encima de estas funciones.
+- `src/components/delete-workspace.tsx`: «Borrar el espacio», al final de
+  «General» (`DELETE /workspaces/{w}`, con el nombre del espacio escrito).
 - `src/lib/verify-client.ts`: el verificador de firmas que corre en el
   navegador, copia exacta del de `../sign-old` (y del de `sello.tax/sign/verify`):
   no se edita aquí ni pasa por Prettier.

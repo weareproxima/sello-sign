@@ -106,8 +106,14 @@ export function FormField({
 	)
 }
 
-/** A problem as a line on the page. */
-export function FormError({ message }: { message: string | null }) {
+/** A problem as a line on the page, with what can be done about it below. */
+export function FormError({
+	message,
+	children,
+}: {
+	message: string | null
+	children?: React.ReactNode
+}) {
 	if (!message) return null
 	return (
 		<div
@@ -115,6 +121,9 @@ export function FormError({ message }: { message: string | null }) {
 			className="rounded-panel bg-bad-fill px-4 py-3 text-ui text-bad"
 		>
 			{message}
+			{children ? (
+				<div className="mt-3 flex flex-wrap items-center gap-3">{children}</div>
+			) : null}
 		</div>
 	)
 }
