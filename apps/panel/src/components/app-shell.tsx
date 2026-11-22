@@ -39,24 +39,21 @@ import {
 import { Sheet, SheetContent, SheetTitle } from '#/components/ui/sheet'
 import { Button } from '#/components/ui/button'
 import { Logo } from '#/components/logo'
+import {
+	PAGE_KEYS,
+	ShellShortcuts,
+	type PagePath,
+} from '#/components/shell-shortcuts'
 import { authClient } from '#/lib/auth-client'
 import { clearToken, type WorkspaceSummary } from '#/lib/api'
 import { ROLE_LABELS } from '#/lib/format'
-import { THEME } from '#/lib/shortcuts'
+import { sequenceText, THEME } from '#/lib/shortcuts'
 import type { Theme } from '#/lib/theme'
 import { useTheme } from '#/lib/use-theme'
 import { cn } from '#/lib/utils'
 
 type NavItem = {
-	to:
-		| '/w/$workspaceId'
-		| '/w/$workspaceId/organizations'
-		| '/w/$workspaceId/signatures'
-		| '/w/$workspaceId/api-keys'
-		| '/w/$workspaceId/settings'
-		| '/w/$workspaceId/members'
-		| '/w/$workspaceId/activity'
-		| '/w/$workspaceId/verify'
+	to: PagePath
 	label: string
 	icon: React.ComponentType<{ className?: string }>
 	exact?: boolean
@@ -127,6 +124,10 @@ function Nav({
 					'aria-current': 'page',
 				}}
 				className={ROW}
+				// Its keys (`ShellShortcuts`), while ⌘ is held: inside the row,
+				// at its end. A sequence has no `aria-keyshortcuts`.
+				data-hint={sequenceText(PAGE_KEYS[entry.to])}
+				data-hint-side="end"
 				onClick={onNavigate}
 			>
 				<entry.icon />
@@ -327,6 +328,10 @@ export function AppShell({
 	children: React.ReactNode
 }) {
 	const [open, setOpen] = React.useState(false)
+	const pages = [
+		...MAIN,
+		...(canManage ? SPACE : SPACE.filter((e) => !MANAGERS_ONLY.includes(e.to))),
+	]
 
 	const column = (onNavigate?: () => void) => (
 		<div className="flex h-full flex-col gap-6 p-3">
@@ -381,6 +386,12 @@ export function AppShell({
 					{children}
 				</main>
 			</div>
+			<ShellShortcuts
+				workspaceId={workspaceId}
+				pages={pages}
+				canManage={canManage}
+				workspaces={workspaces}
+			/>
 		</div>
 	)
 }

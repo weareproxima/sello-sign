@@ -49,6 +49,30 @@ export type Shortcut = { text: string; aria: string }
  */
 export const THEME: Shortcut = { text: 'D', aria: 'D' }
 
+/**
+ * La lista de atajos (`ShortcutsDialog` de `components/keyboard-shortcuts.tsx`): ⌘/,
+ * como en ChatGPT, desde cualquier sitio, y `?`, como en GitHub y Gmail,
+ * cuando no se escribe. ⇧ no importa para la barra: en los teclados de
+ * España y de Latinoamérica `/` es ⇧7.
+ */
+export const HELP: Shortcut = { text: `${MOD} /`, aria: `${MOD_ARIA}+/ ?` }
+
+export function isHelp(e: Keypress): boolean {
+	if (e.altKey) return false
+	if (e.metaKey || e.ctrlKey) return e.key === '/'
+	return e.key === '?' && !isTyping(e.target ?? null)
+}
+
+/**
+ * Cómo se lee una secuencia (`KeySequence` de `components/keyboard-shortcuts.tsx`):
+ * sus teclas en mayúsculas, separadas por un espacio («G D»). `aria-keyshortcuts`
+ * no sabe decir secuencias —su espacio separa alternativas—, así que un
+ * control que solo tiene una la dice con `data-hint` y en su tooltip.
+ */
+export function sequenceText(keys: ReadonlyArray<string>): string {
+	return keys.map((k) => k.toUpperCase()).join(' ')
+}
+
 /** Lo que una pulsación dice de sí misma: un `KeyboardEvent`, o su igual en un test. */
 type Keypress = {
 	key: string

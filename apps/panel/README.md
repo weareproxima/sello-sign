@@ -93,13 +93,22 @@ atrás, en [`docs/deploy.md`](../../docs/deploy.md).
   shadcn (`@sello` en `components.json`) y no se editan aquí: se reinstalan
   con `bunx shadcn@latest add @sello/<nombre> --overwrite` (ver «Reglas» en
   `AGENTS.md`).
-- `src/components/page-shortcuts.tsx`, en la raíz: el teclado que el panel
-  comparte con el chat, la web y el centro de cuenta de Sello. La D cambia el
-  modo de color (`toggleTheme` de `src/lib/use-theme.ts`, el mismo modo que
-  elige el menú de la cuenta) y, al mantener ⌘, se ven las teclas de los
-  controles a la vista que las declaran con `data-hint` (`ShortcutHints`, del
-  registro). Un control nuevo con atajo lo declara también en
-  `aria-keyshortcuts` («Atajos visibles» de `../sello/DESIGN.md`).
+- `src/components/page-shortcuts.tsx`, en la raíz, y
+  `src/components/shell-shortcuts.tsx`, en `AppShell`: el teclado que el panel
+  comparte con el chat, la web y el centro de cuenta de Sello. En cualquier
+  página, la D cambia el modo de color (`toggleTheme` de
+  `src/lib/use-theme.ts`, el mismo modo que elige el menú de la cuenta) y, al
+  mantener ⌘, se ven las teclas de los controles a la vista que las declaran
+  con `data-hint` (`ShortcutHints`, del registro). En las páginas de un
+  espacio, como en el primer Sello Sign: G y una letra van a cada página de
+  la columna (`PAGE_KEYS`: G D Resumen, G O Organizaciones, G F Registro de
+  firmas, G V Verificar una firma, G K Claves de API, G M Miembros, G H
+  Actividad, G S General) y G A a «Su cuenta»; N, a una organización nueva,
+  para quien la puede crear; W y un número, a otro espacio, en el orden del
+  selector; y ⌘/ o `?` abre la lista de todos (`KeySequences` y
+  `ShortcutsDialog`, del registro). Cada fila de la columna enseña su
+  secuencia al mantener ⌘; `aria-keyshortcuts` no sabe decir secuencias.
+  Una página nueva de la columna entra en `PAGE_KEYS`, que su prueba revisa.
 - `src/routes/`: `_auth.*` (entrar), `_app.*` (con sesión: también «Su
   cuenta», `_app.account.tsx`, en `/account`, fuera de cualquier espacio),
   `_app.w.$workspaceId.*` (un espacio, también «Verificar una firma»,
