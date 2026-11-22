@@ -13,7 +13,7 @@ import {
  * the `D` key (`toggleTheme`, from `components/page-shortcuts.tsx`) read and
  * change the same one, so choosing in one place moves the other. The cookie
  * `sello-theme` is shared with the rest of Sello, as in its web
- * (`../sello/apps/web/src/lib/theme.ts`).
+ * (`../sello/apps/platform/src/lib/theme.ts`).
  *
  * The `<head>` script already painted it before React (`THEME_SCRIPT`); here
  * it is only kept in step. While something reads it, it follows the system
