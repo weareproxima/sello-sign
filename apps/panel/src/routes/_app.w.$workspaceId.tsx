@@ -50,6 +50,7 @@ function WorkspaceLayout() {
 			canManage={current?.role === 'owner' || current?.role === 'admin'}
 			user={{ name: session.user.name, email: session.user.email }}
 			cloud={config.cloud}
+			apiUrl={config.apiUrl}
 		>
 			{body}
 		</AppShell>

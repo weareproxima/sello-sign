@@ -46,15 +46,19 @@ export function ShellShortcuts({
 	pages,
 	canManage,
 	workspaces,
+	helping,
+	onHelpingChange,
 }: {
 	workspaceId: string
 	pages: ReadonlyArray<{ to: PagePath; label: string }>
 	canManage: boolean
 	workspaces: ReadonlyArray<WorkspaceSummary>
+	/** The list's, open also from «Atajos de teclado» of «Ayuda» (`AppShell`). */
+	helping: boolean
+	onHelpingChange: (open: boolean) => void
 }) {
 	const navigate = useNavigate()
 	const here = useRouterState({ select: (s) => s.location.href })
-	const [helping, setHelping] = React.useState(false)
 	const spaces = workspaces.slice(0, 9)
 
 	React.useEffect(() => holdMoves(), [])
@@ -63,11 +67,11 @@ export function ShellShortcuts({
 		const onKeyDown = (e: KeyboardEvent) => {
 			if (e.defaultPrevented || !isHelp(e)) return
 			e.preventDefault()
-			setHelping((was) => !was)
+			onHelpingChange(!helping)
 		}
 		window.addEventListener('keydown', onKeyDown)
 		return () => window.removeEventListener('keydown', onKeyDown)
-	}, [])
+	}, [helping, onHelpingChange])
 
 	const sequences: KeySequence[] = [
 		...pages.map((p) => ({
@@ -143,7 +147,7 @@ export function ShellShortcuts({
 			<KeySequences sequences={sequences} />
 			<ShortcutsDialog
 				open={helping}
-				onOpenChange={setHelping}
+				onOpenChange={onHelpingChange}
 				groups={groups}
 				description={`Mantenga presionada la tecla ${MOD} para ver los atajos de los controles en pantalla. Las secuencias se escriben una tecla tras otra: G y luego D.`}
 			/>

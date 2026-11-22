@@ -109,6 +109,11 @@ atrás, en [`docs/deploy.md`](../../docs/deploy.md).
   `ShortcutsDialog`, del registro). Cada fila de la columna enseña su
   secuencia al mantener ⌘; `aria-keyshortcuts` no sabe decir secuencias.
   Una página nueva de la columna entra en `PAGE_KEYS`, que su prueba revisa.
+  Encima de la cuenta, «Ayuda» (`HelpMenu` de `app-shell.tsx`; «El menú de
+  ayuda» de `../sello/DESIGN.md`): «Especificación del API» (el
+  `openapi.yaml` del API, en otra pestaña) y «Atajos de teclado», la misma
+  lista que ⌘/; «Preguntar a Sello AI», el centro de ayuda y el contacto con
+  soporte esperan como `TODO(ayuda)`.
 - `src/routes/`: `_auth.*` (entrar), `_app.*` (con sesión: también «Su
   cuenta», `_app.account.tsx`, en `/account`, fuera de cualquier espacio),
   `_app.w.$workspaceId.*` (un espacio, también «Verificar una firma»,

@@ -7,11 +7,15 @@ import {
 } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import {
+	BookOpenIcon,
 	BuildingIcon,
 	CheckIcon,
 	ChevronsUpDownIcon,
+	CircleHelpIcon,
+	ExternalLinkIcon,
 	FileSignatureIcon,
 	HistoryIcon,
+	KeyboardIcon,
 	KeyRoundIcon,
 	LayoutDashboardIcon,
 	LogOutIcon,
@@ -220,6 +224,73 @@ function WorkspaceSwitcher({
 	)
 }
 
+/**
+ * «Ayuda», above the account: one more row of the column, which opens its
+ * menu above it with what helps today: the API's specification, for
+ * whoever integrates, and the list of shortcuts. The same row as the one of
+ * Sello's chat and web (`../sello/DESIGN.md`, «El menú de ayuda»).
+ */
+function HelpMenu({
+	apiUrl,
+	onShortcuts,
+	onNavigate,
+}: {
+	apiUrl: string
+	onShortcuts: () => void
+	onNavigate?: () => void
+}) {
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger
+				render={
+					<button
+						type="button"
+						className={cn(ROW, 'w-full text-left aria-expanded:bg-fill')}
+					/>
+				}
+			>
+				<CircleHelpIcon />
+				<span className="truncate">Ayuda</span>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent side="top" className="min-w-60">
+				{/* TODO(ayuda): «Preguntar a Sello AI», first: an assistant that
+				    floats over the page and hands the conversation to a person
+				    when it doesn't solve the problem. Waits for Sello AI. */}
+				{/* TODO(ayuda): «Centro de ayuda» and the API's reference as a
+				    page (Scalar, as Sello's platform serves at `/docs`), once
+				    there are; until then, its specification as it is. */}
+				<DropdownMenuItem
+					render={
+						<a
+							href={`${apiUrl}/openapi.yaml`}
+							target="_blank"
+							rel="noreferrer"
+						/>
+					}
+					onClick={onNavigate}
+				>
+					<BookOpenIcon />
+					Especificación del API
+					{/* It opens in another tab: it's the API's file. */}
+					<ExternalLinkIcon className="ml-auto" />
+				</DropdownMenuItem>
+				<DropdownMenuItem
+					onClick={() => {
+						onNavigate?.()
+						onShortcuts()
+					}}
+				>
+					<KeyboardIcon />
+					Atajos de teclado
+				</DropdownMenuItem>
+				{/* TODO(ayuda): «Contactar a soporte», last, once there's a
+				    support address (in the cloud; an installation of its own
+				    may have none). */}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	)
+}
+
 function AccountMenu({
 	name,
 	email,
@@ -317,6 +388,7 @@ export function AppShell({
 	canManage,
 	user,
 	cloud,
+	apiUrl,
 	children,
 }: {
 	workspaceId: string
@@ -325,9 +397,13 @@ export function AppShell({
 	canManage: boolean
 	user: { name: string; email: string }
 	cloud: boolean
+	/** The API's public origin, where its specification is. */
+	apiUrl: string
 	children: React.ReactNode
 }) {
 	const [open, setOpen] = React.useState(false)
+	// The list of shortcuts: ⌘/ or `?`, and «Atajos de teclado» of «Ayuda».
+	const [helping, setHelping] = React.useState(false)
 	const pages = [
 		...MAIN,
 		...(canManage ? SPACE : SPACE.filter((e) => !MANAGERS_ONLY.includes(e.to))),
@@ -347,11 +423,18 @@ export function AppShell({
 					onNavigate={onNavigate}
 				/>
 			</div>
-			<AccountMenu
-				name={user.name}
-				email={user.email}
-				onNavigate={onNavigate}
-			/>
+			<div className="flex flex-col gap-0.5">
+				<HelpMenu
+					apiUrl={apiUrl}
+					onShortcuts={() => setHelping(true)}
+					onNavigate={onNavigate}
+				/>
+				<AccountMenu
+					name={user.name}
+					email={user.email}
+					onNavigate={onNavigate}
+				/>
+			</div>
 		</div>
 	)
 
@@ -391,6 +474,8 @@ export function AppShell({
 				pages={pages}
 				canManage={canManage}
 				workspaces={workspaces}
+				helping={helping}
+				onHelpingChange={setHelping}
 			/>
 		</div>
 	)
