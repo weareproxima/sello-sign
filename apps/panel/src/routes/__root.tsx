@@ -7,6 +7,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { Toaster } from '#/components/ui/toast'
 import { TooltipProvider } from '#/components/ui/tooltip'
 import { NotFound } from '#/components/not-found'
+import { PageShortcuts } from '#/components/page-shortcuts'
 import { THEME_COLOR, THEME_SCRIPT } from '#/lib/theme-script'
 import appCss from '../styles.css?url'
 
@@ -38,6 +39,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			<body>
 				<TooltipProvider>
 					<Toaster>{children}</Toaster>
+					<PageShortcuts />
 				</TooltipProvider>
 				<Scripts />
 			</body>

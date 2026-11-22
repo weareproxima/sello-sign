@@ -16,7 +16,8 @@
  *
  * It reads all of `src/` except what comes from the `@sello` registry and is
  * not edited here (`src/components/ui/`, `src/lib/utils.ts`,
- * `src/lib/button-variants.ts`, `src/styles/sello/`: they change in
+ * `src/lib/button-variants.ts`, `src/lib/shortcuts.ts`, `src/styles/sello/`:
+ * they change in
  * `../sello/packages/ui`, which lints them), the generated route tree, the
  * tests, and the e-mails (`src/lib/email.ts`, `src/lib/*-email.ts`, `src/lib/sales-inquiry.ts`),
  * whose HTML carries written colours because no mail client reads variables.
@@ -197,6 +198,7 @@ const SKIP = [
 	/^src\/components\/ui\//,
 	/^src\/lib\/utils\.ts$/,
 	/^src\/lib\/button-variants\.ts$/,
+	/^src\/lib\/shortcuts\.ts$/,
 	/^src\/styles\/sello\//,
 	/\.gen\.ts$/,
 	/\.test\.tsx?$/,

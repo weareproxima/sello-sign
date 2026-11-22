@@ -88,11 +88,18 @@ atrás, en [`docs/deploy.md`](../../docs/deploy.md).
   `apps/api/internal/httpapi/mcp.go`.
 - `src/styles.css`: importa Tailwind y el tema de Sello, `src/styles/sello/`
   (los tokens, las piezas de CSS y su conexión con Tailwind).
-- `src/components/ui/`, `src/lib/utils.ts` y `src/lib/button-variants.ts`: las
-  piezas de Sello. Las dos cosas se instalan desde su registro público de
+- `src/components/ui/`, `src/lib/utils.ts`, `src/lib/button-variants.ts` y
+  `src/lib/shortcuts.ts`: las piezas de Sello. Las dos cosas se instalan desde su registro público de
   shadcn (`@sello` en `components.json`) y no se editan aquí: se reinstalan
   con `bunx shadcn@latest add @sello/<nombre> --overwrite` (ver «Reglas» en
   `AGENTS.md`).
+- `src/components/page-shortcuts.tsx`, en la raíz: el teclado que el panel
+  comparte con el chat, la web y el centro de cuenta de Sello. La D cambia el
+  modo de color (`toggleTheme` de `src/lib/use-theme.ts`, el mismo modo que
+  elige el menú de la cuenta) y, al mantener ⌘, se ven las teclas de los
+  controles a la vista que las declaran con `data-hint` (`ShortcutHints`, del
+  registro). Un control nuevo con atajo lo declara también en
+  `aria-keyshortcuts` («Atajos visibles» de `../sello/DESIGN.md`).
 - `src/routes/`: `_auth.*` (entrar), `_app.*` (con sesión: también «Su
   cuenta», `_app.account.tsx`, en `/account`, fuera de cualquier espacio),
   `_app.w.$workspaceId.*` (un espacio, también «Verificar una firma»,

@@ -109,7 +109,8 @@ en Go) y las de better-auth, del panel, en el esquema `auth`.
 - El sistema de diseño viene del registro público de shadcn de Sello
   (`@sello`, `https://sello.tax/r/{name}.json`, en `components.json` del
   panel): las piezas de `src/components/ui/`, `src/lib/utils.ts`,
-  `src/lib/button-variants.ts` y los tokens de `src/styles/sello/` no se
+  `src/lib/button-variants.ts`, `src/lib/shortcuts.ts` y los tokens de
+  `src/styles/sello/` no se
   editan en Sign. Cambian en `packages/ui` de `../sello` y se reinstalan con
   `bunx shadcn@latest add @sello/<nombre> --overwrite` desde `apps/panel`
   (`--diff` enseña lo que se apartó del registro). Lo propio del panel, como

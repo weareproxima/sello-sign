@@ -37,6 +37,15 @@ export function isDark(theme: Theme): boolean {
 	)
 }
 
+/**
+ * El modo al que lleva la D (`THEME` de `lib/shortcuts.ts`): del sistema, al
+ * que el sistema no es, para que la página siempre cambie; de uno elegido, de
+ * vuelta al del sistema.
+ */
+export function toggledTheme(now: Theme): Theme {
+	return now === 'system' ? (isDark('system') ? 'light' : 'dark') : 'system'
+}
+
 /** Pinta el modo: la clase, el `color-scheme` y el color de la barra. */
 export function applyTheme(theme: Theme) {
 	const dark = isDark(theme)

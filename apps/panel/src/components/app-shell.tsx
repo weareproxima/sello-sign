@@ -42,7 +42,9 @@ import { Logo } from '#/components/logo'
 import { authClient } from '#/lib/auth-client'
 import { clearToken, type WorkspaceSummary } from '#/lib/api'
 import { ROLE_LABELS } from '#/lib/format'
-import { readTheme, saveTheme, followSystem, type Theme } from '#/lib/theme'
+import { THEME } from '#/lib/shortcuts'
+import type { Theme } from '#/lib/theme'
+import { useTheme } from '#/lib/use-theme'
 import { cn } from '#/lib/utils'
 
 type NavItem = {
@@ -231,14 +233,8 @@ function AccountMenu({
 	const here = useRouterState({ select: (s) => s.location.href })
 	const router = useRouter()
 	const queryClient = useQueryClient()
-	const [theme, setTheme] = React.useState<Theme>('system')
-	const themeRef = React.useRef(theme)
-	themeRef.current = theme
-
-	React.useEffect(() => {
-		setTheme(readTheme())
-		return followSystem(() => themeRef.current)
-	}, [])
+	// The same mode as the `D` key's (`components/page-shortcuts.tsx`).
+	const [theme, chooseTheme] = useTheme()
 
 	async function signOut() {
 		await authClient.signOut()
@@ -272,11 +268,8 @@ function AccountMenu({
 					<DropdownMenuLabel>Tema</DropdownMenuLabel>
 					<DropdownMenuRadioGroup
 						value={theme}
-						onValueChange={(value) => {
-							const next = value as Theme
-							setTheme(next)
-							saveTheme(next)
-						}}
+						aria-keyshortcuts={THEME.aria}
+						onValueChange={(value) => chooseTheme(value as Theme)}
 					>
 						<DropdownMenuRadioItem value="light">
 							<SunIcon />
