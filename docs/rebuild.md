@@ -52,7 +52,8 @@ encuentro: se extienden sin romper a quien los usa.
 
 - El servidor MCP (las herramientas de `../sign-old/docs/api.md`): hecho en
   el API y, cómo conectarlo con una clave, en el panel el 2026-11-20 («API»
-  y «Panel»). Falta que el landing de Sello lo cuente.
+  y «Panel»). El landing de Sello lo cuenta desde el mismo día, en las
+  preguntas frecuentes de `/sign`.
 - Los avisos y las tareas programadas: hechos en el API el 2026-11-20
   («API», «Los avisos»): los certificados por vencer y el uso del plan, por
   correo cada hora; el reporte de uso a billing cada hora ya estaba
@@ -76,6 +77,8 @@ encuentro: se extienden sin romper a quien los usa.
   plataforma no los guarda), si se decide copiarlos.
 - El cambio en la plataforma de Sello: `X-Organization-Id`, el id de la
   organización en vez de `sign_issuer_id` y la delegación al archivar.
+  Hecho el 2026-11-19 (`../sello`, migración `0024` de la plataforma y
+  `internal/emission/infrastructure/sign`).
 - Las pruebas de punta a punta en la nube.
 - Cada país contra el ambiente de pruebas de su fisco antes de ofrecerlo.
 
